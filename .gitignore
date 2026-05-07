@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.cache/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Backend disk cache
+backend/.cache/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# HuggingFace cache (large model files)
+.cache/huggingface/
