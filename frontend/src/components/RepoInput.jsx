@@ -1,16 +1,20 @@
 import { useState } from 'react'
 import useStore from '../store'
 import { useGraphData } from '../hooks/useGraphData'
+import ProviderSetup from './ProviderSetup'
 
 const EXAMPLES = [
-  { label: 'fastapi/fastapi', url: 'https://github.com/fastapi/fastapi' },
-  { label: 'pallets/flask', url: 'https://github.com/pallets/flask' },
   { label: 'psf/requests', url: 'https://github.com/psf/requests' },
+  { label: 'pallets/flask', url: 'https://github.com/pallets/flask' },
+  { label: 'fastapi/fastapi', url: 'https://github.com/fastapi/fastapi' },
 ]
 
 export default function RepoInput() {
   const [input, setInput] = useState('')
   const setRepoUrl = useStore((s) => s.setRepoUrl)
+  const provider = useStore((s) => s.provider)
+  const apiKey = useStore((s) => s.apiKey)
+  const setProvider = useStore((s) => s.setProvider)
   const { loadRepo } = useGraphData()
 
   function handleSubmit(e) {
@@ -47,8 +51,8 @@ export default function RepoInput() {
           </button>
         </form>
 
-        <div className="mt-6">
-          <p className="text-gray-500 text-xs mb-3 text-center">Quick examples</p>
+        <div className="mt-4">
+          <p className="text-gray-500 text-xs mb-2 text-center">Quick examples</p>
           <div className="flex gap-2 justify-center flex-wrap">
             {EXAMPLES.map((ex) => (
               <button
@@ -61,6 +65,12 @@ export default function RepoInput() {
             ))}
           </div>
         </div>
+
+        <ProviderSetup
+          provider={provider}
+          apiKey={apiKey}
+          onChange={setProvider}
+        />
       </div>
     </div>
   )

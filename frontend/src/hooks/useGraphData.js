@@ -3,6 +3,8 @@ import useStore from '../store'
 export function useGraphData() {
   const setGraph = useStore((s) => s.setGraph)
   const setRepoStatus = useStore((s) => s.setRepoStatus)
+  const provider = useStore((s) => s.provider)
+  const apiKey = useStore((s) => s.apiKey)
 
   async function loadRepo(url) {
     setRepoStatus('loading')
@@ -10,7 +12,7 @@ export function useGraphData() {
       const resp = await fetch('/api/repo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, provider, api_key: apiKey }),
       })
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ detail: resp.statusText }))

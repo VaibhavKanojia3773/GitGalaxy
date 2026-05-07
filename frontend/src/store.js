@@ -6,6 +6,10 @@ const useStore = create((set, get) => ({
   repoStatus: 'idle', // 'idle' | 'loading' | 'ready' | 'error'
   repoError: null,
 
+  // embedding provider
+  provider: 'local',   // 'local' | 'gemini' | 'openai'
+  apiKey: '',
+
   // graph data
   graph: null,
   nodeMap: {},
@@ -25,6 +29,8 @@ const useStore = create((set, get) => ({
 
   // actions
   setRepoUrl: (url) => set({ repoUrl: url }),
+
+  setProvider: ({ provider, apiKey }) => set({ provider, apiKey }),
 
   setRepoStatus: (status, error = null) => set({ repoStatus: status, repoError: error }),
 
