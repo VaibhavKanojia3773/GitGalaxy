@@ -1,21 +1,9 @@
-import { useEffect, useState } from 'react'
-
-const MESSAGES = [
-  'Fetching repository...',
-  'Chunking code...',
-  'Computing embeddings...',
-  'Building galaxy...',
-]
+import useStore from '../store'
 
 export default function LoadingOverlay() {
-  const [msgIdx, setMsgIdx] = useState(0)
+  const { stage, message, pct } = useStore((s) => s.loadingProgress)
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      setMsgIdx((i) => (i + 1) % MESSAGES.length)
-    }, 4000)
-    return () => clearInterval(id)
-  }, [])
+  const displayMessage = message || 'Preparing galaxy...'
 
   return (
     <div className="fixed inset-0 bg-gray-950 flex flex-col items-center justify-center z-50">
@@ -32,12 +20,22 @@ export default function LoadingOverlay() {
         </div>
       </div>
 
-      <div className="stars-container relative w-64 h-2 overflow-hidden mb-6">
-        <div className="h-full bg-gradient-to-r from-transparent via-indigo-500 to-transparent animate-pulse" />
+      {/* progress bar */}
+      <div className="w-72 mb-5">
+        <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-indigo-600 to-purple-500 rounded-full transition-all duration-500"
+            style={{ width: `${Math.max(2, pct)}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-1">
+          <span className="text-gray-600 text-xs capitalize">{stage || 'starting'}</span>
+          <span className="text-gray-600 text-xs">{pct}%</span>
+        </div>
       </div>
 
       <p className="text-indigo-300 text-sm font-medium tracking-wide transition-all duration-500">
-        {MESSAGES[msgIdx]}
+        {displayMessage}
       </p>
       <p className="text-gray-600 text-xs mt-2">
         First run downloads ~550MB model — subsequent loads are instant

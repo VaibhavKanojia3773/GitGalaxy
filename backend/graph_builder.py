@@ -35,12 +35,7 @@ def _parse_imports(file_path: str, content: str) -> list[str]:
 def _resolve_import(imp: str, source_path: str, all_paths: set) -> str | None:
     source_dir = os.path.dirname(source_path)
     candidates = [
-        imp,
-        imp + '.py',
-        imp + '.js',
-        imp + '.ts',
-        imp + '.jsx',
-        imp + '.tsx',
+        imp, imp + '.py', imp + '.js', imp + '.ts', imp + '.jsx', imp + '.tsx',
         os.path.join(source_dir, imp).replace('\\', '/'),
         os.path.join(source_dir, imp + '.py').replace('\\', '/'),
         os.path.join(source_dir, imp + '.js').replace('\\', '/'),
@@ -66,6 +61,7 @@ def build_graph(
     pr_embeddings: np.ndarray,
     repo: str,
     file_contents: dict[str, str],
+    faiss_index=None,
 ) -> dict:
     nodes = []
     node_index_map: dict[str, int] = {}
@@ -93,7 +89,6 @@ def build_graph(
 
     # issue nodes
     for j, issue in enumerate(issues):
-        idx = n_code + j
         coords = issue_coords[j] if j < len(issue_coords) else [0.0, 0.0, 0.0]
         node = {
             'id': f"issue::{issue['number']}",
@@ -106,16 +101,15 @@ def build_graph(
             'y': float(coords[1]),
             'z': float(coords[2]),
             'size': 1.5,
-            'embedding_index': idx,
+            'embedding_index': n_code + j,
         }
-        node_index_map[node['id']] = idx
+        node_index_map[node['id']] = n_code + j
         nodes.append(node)
 
     n_code_issue = n_code + len(issues)
 
     # pr nodes
     for k, pr in enumerate(prs):
-        idx = n_code_issue + k
         coords = pr_coords[k] if k < len(pr_coords) else [0.0, 0.0, 0.0]
         node = {
             'id': f"pr::{pr['number']}",
@@ -128,16 +122,15 @@ def build_graph(
             'y': float(coords[1]),
             'z': float(coords[2]),
             'size': 1.5,
-            'embedding_index': idx,
+            'embedding_index': n_code_issue + k,
         }
-        node_index_map[node['id']] = idx
+        node_index_map[node['id']] = n_code_issue + k
         nodes.append(node)
 
     # structural edges
     edges = []
     edge_set: set[tuple] = set()
     all_paths = {chunk['file_path'] for chunk in chunks}
-    # map file path -> list of node ids for that file
     file_to_nodes: dict[str, list[str]] = {}
     for chunk in chunks:
         file_to_nodes.setdefault(chunk['file_path'], []).append(chunk['id'])
@@ -162,17 +155,16 @@ def build_graph(
                                 'weight': 1.0,
                             })
 
-    # semantic edges from code embeddings
-    if len(embeddings) > 1:
-        sim_matrix = embeddings @ embeddings.T  # (n, n) cosine similarities
+    # semantic edges via FAISS — O(n log n) instead of O(n²)
+    if len(embeddings) > 1 and faiss_index is not None:
+        q = embeddings.astype(np.float32)
+        distances, indices = faiss_index.search(q, SEMANTIC_K + 1)
         semantic_edges = []
         for i in range(len(chunks)):
-            sims = sim_matrix[i].copy()
-            sims[i] = -1  # exclude self
-            top_k_idx = np.argsort(sims)[-SEMANTIC_K:][::-1]
-            for j in top_k_idx:
-                sim = float(sims[j])
-                if sim < SEMANTIC_THRESHOLD:
+            for rank in range(SEMANTIC_K + 1):
+                j = int(indices[i, rank])
+                sim = float(distances[i, rank])
+                if j == i or j < 0 or j >= len(chunks) or sim < SEMANTIC_THRESHOLD:
                     continue
                 src_id = chunks[i]['id']
                 tgt_id = chunks[j]['id']
@@ -185,8 +177,6 @@ def build_graph(
                         'type': 'semantic',
                         'weight': sim,
                     })
-
-        # sort by weight, cap total
         semantic_edges.sort(key=lambda e: e['weight'], reverse=True)
         remaining = MAX_EDGES - len(edges)
         edges.extend(semantic_edges[:max(0, remaining)])
@@ -196,8 +186,7 @@ def build_graph(
         structural = [e for e in edges if e['type'] == 'structural']
         semantic = sorted(
             [e for e in edges if e['type'] == 'semantic'],
-            key=lambda e: e['weight'],
-            reverse=True
+            key=lambda e: e['weight'], reverse=True
         )
         edges = (structural + semantic)[:MAX_EDGES]
 

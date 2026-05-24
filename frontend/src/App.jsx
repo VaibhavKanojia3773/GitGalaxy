@@ -6,13 +6,14 @@ import Scene from './components/Scene'
 import SearchBar from './components/SearchBar'
 import NodePanel from './components/NodePanel'
 import Legend from './components/Legend'
+import ChatPanel from './components/ChatPanel'
 
 export default function App() {
-  const repoStatus = useStore((s) => s.repoStatus)
-  const repoError = useStore((s) => s.repoError)
+  const repoStatus  = useStore((s) => s.repoStatus)
+  const repoError   = useStore((s) => s.repoError)
   const selectedNode = useStore((s) => s.selectedNode)
   const setRepoStatus = useStore((s) => s.setRepoStatus)
-  const setRepoUrl = useStore((s) => s.setRepoUrl)
+  const setRepoUrl  = useStore((s) => s.setRepoUrl)
 
   if (repoStatus === 'idle') {
     return <RepoInput />
@@ -38,13 +39,16 @@ export default function App() {
   }
 
   return (
-    <div className="relative w-screen h-screen bg-gray-950 overflow-hidden">
+    <div className="relative w-screen bg-gray-950 overflow-hidden" style={{ height: '100vh', paddingBottom: '52px' }}>
       <Suspense fallback={<LoadingOverlay />}>
-        <Scene />
+        <div className="w-full h-full">
+          <Scene />
+        </div>
       </Suspense>
       <SearchBar />
       <Legend />
       {selectedNode && <NodePanel />}
+      <ChatPanel />
     </div>
   )
 }

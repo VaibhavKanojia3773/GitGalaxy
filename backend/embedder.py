@@ -48,10 +48,11 @@ class Embedder:
         print(f"[embedder] Running UMAP on {len(embeddings)} embeddings...")
         reducer = umap.UMAP(
             n_components=3,
-            n_neighbors=15,
-            min_dist=0.08,
+            n_neighbors=5,
+            min_dist=0.1,
             metric="cosine",
             random_state=42,
+            low_memory=True,
         )
         coords = reducer.fit_transform(embeddings)
         print("[embedder] UMAP done.")
@@ -72,12 +73,12 @@ class Embedder:
     # ── private helpers ─────────────────────────────────────────────────────
 
     def _dim(self) -> int:
-        return 768  # all three providers use 768-dim
+        return 768
 
     def _encode_local(self, texts: list[str]) -> np.ndarray:
         return self._model.encode(
             texts,
-            batch_size=32,
+            batch_size=64,
             show_progress_bar=True,
             normalize_embeddings=True,
         ).astype(np.float32)
@@ -85,12 +86,10 @@ class Embedder:
     def _encode_gemini(self, texts: list[str]) -> np.ndarray:
         import httpx, time
         if not self.api_key:
-            raise ValueError("Gemini API key is required. Set GEMINI_API_KEY in .env or enter it in the UI.")
+            raise ValueError("Gemini API key is required.")
 
         url = "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents"
         headers = {"Content-Type": "application/json", "x-goog-api-key": self.api_key}
-
-        # Gemini batchEmbedContents accepts up to 100 items per call
         BATCH = 100
         all_embeddings = []
 
@@ -109,27 +108,21 @@ class Embedder:
                     continue
                 resp.raise_for_status()
                 break
-
-            data = resp.json()
-            for emb_obj in data["embeddings"]:
+            for emb_obj in resp.json()["embeddings"]:
                 all_embeddings.append(emb_obj["values"])
-
             print(f"[embedder] Gemini: {min(i + BATCH, len(texts))}/{len(texts)} embedded")
 
         arr = np.array(all_embeddings, dtype=np.float32)
-        # normalize for cosine similarity
         norms = np.linalg.norm(arr, axis=1, keepdims=True)
         return arr / np.maximum(norms, 1e-9)
 
     def _encode_openai(self, texts: list[str]) -> np.ndarray:
         import httpx, time
         if not self.api_key:
-            raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY in .env or enter it in the UI.")
+            raise ValueError("OpenAI API key is required.")
 
         url = "https://api.openai.com/v1/embeddings"
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-
-        # OpenAI accepts up to 2048 inputs but keep batches small to stay within token limits
         BATCH = 200
         all_embeddings = []
 
@@ -143,10 +136,8 @@ class Embedder:
                     continue
                 resp.raise_for_status()
                 break
-
             for item in sorted(resp.json()["data"], key=lambda x: x["index"]):
                 all_embeddings.append(item["embedding"])
-
             print(f"[embedder] OpenAI: {min(i + BATCH, len(texts))}/{len(texts)} embedded")
 
         arr = np.array(all_embeddings, dtype=np.float32)
