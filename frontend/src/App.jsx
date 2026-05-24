@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import useStore from './store'
 import RepoInput from './components/RepoInput'
 import LoadingOverlay from './components/LoadingOverlay'
@@ -47,7 +48,9 @@ export default function App() {
       </Suspense>
       <SearchBar />
       <Legend />
-      {selectedNode && <NodePanel />}
+      <AnimatePresence>
+        {selectedNode && <NodePanel key="node-panel" />}
+      </AnimatePresence>
       <ChatPanel />
     </div>
   )

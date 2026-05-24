@@ -16,12 +16,8 @@ class Embedder:
 
     def _load_local_model(self):
         from sentence_transformers import SentenceTransformer
-        print("[embedder] Loading local model (jinaai/jina-embeddings-v2-base-code)...")
-        self._model = SentenceTransformer(
-            "jinaai/jina-embeddings-v2-base-code",
-            trust_remote_code=True,
-            revision="b52ee6b781bfe3e0a25c4b99de15494ecb8a7aea",
-        )
+        print("[embedder] Loading local model (BAAI/bge-base-en-v1.5)...")
+        self._model = SentenceTransformer("BAAI/bge-base-en-v1.5")
         print("[embedder] Local model loaded.")
 
     # ── public API ──────────────────────────────────────────────────────────

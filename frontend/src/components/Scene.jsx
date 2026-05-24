@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react'
+import { useRef, useMemo, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
@@ -34,6 +34,11 @@ function CameraController() {
 }
 
 function GalaxyParticles({ count = 8000 }) {
+  const meshRef = useRef()
+  useFrame((_, delta) => {
+    if (meshRef.current) meshRef.current.rotation.y += delta * 0.018
+  })
+
   const geo = useMemo(() => {
     const positions = new Float32Array(count * 3)
     const colors    = new Float32Array(count * 3)
@@ -62,7 +67,7 @@ function GalaxyParticles({ count = 8000 }) {
   }, [count])
 
   return (
-    <points geometry={geo}>
+    <points ref={meshRef} geometry={geo}>
       <pointsMaterial
         size={0.35}
         vertexColors
@@ -92,6 +97,13 @@ function GalaxyCore() {
 
 export default function Scene() {
   const clearSelection = useStore((s) => s.clearSelection)
+  const setExpandedFile = useStore((s) => s.setExpandedFile)
+
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') setExpandedFile(null) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [setExpandedFile])
 
   return (
     <Canvas

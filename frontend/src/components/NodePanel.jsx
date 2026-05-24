@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { X, ChevronDown, ChevronUp } from 'lucide-react'
 import useStore from '../store'
 
@@ -113,7 +114,13 @@ export default function NodePanel() {
   const isPR = selectedNode.type === 'pr'
 
   return (
-    <div className="fixed right-0 top-0 h-full w-80 bg-gray-900/95 backdrop-blur-md border-l border-gray-800 z-20 flex flex-col overflow-hidden">
+    <motion.div
+      className="fixed right-0 top-0 h-full w-80 bg-gray-900/95 backdrop-blur-md border-l border-gray-800 z-20 flex flex-col overflow-hidden"
+      initial={{ x: 320, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: 320, opacity: 0 }}
+      transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+    >
       {/* header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
         <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
@@ -225,6 +232,6 @@ export default function NodePanel() {
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }

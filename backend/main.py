@@ -336,7 +336,7 @@ async def chat(req: ChatRequest):
     if chunks is None:
         raise HTTPException(status_code=404, detail='Repo not processed. POST /api/repo first.')
 
-    faiss_index = faiss_lib.deserialize_index(index_buf) if index_buf else None
+    faiss_index = faiss_lib.deserialize_index(index_buf) if index_buf is not None else None
     embedder = _get_embedder(provider_info.get('provider', 'local'), provider_info.get('api_key', ''))
 
     engine = ChatEngine(

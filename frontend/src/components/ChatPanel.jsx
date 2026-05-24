@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import useStore from '../store'
 
 const SUGGESTIONS = [
@@ -134,54 +135,61 @@ export default function ChatPanel() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-30" style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
-      {/* expanded conversation */}
-      {open && chatHistory.length > 0 && (
-        <div
-          className="bg-gray-900/95 border-t border-gray-800 overflow-y-auto px-4 pt-3 pb-1"
-          style={{ maxHeight: '260px', backdropFilter: 'blur(12px)' }}
-        >
-          {chatHistory.map((msg, i) => (
-            <Message key={i} msg={msg} />
-          ))}
-          {loading && (
-            <div className="flex gap-2 justify-start mb-3">
-              <div className="w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0">
-                <span className="text-white" style={{ fontSize: 10 }}>G</span>
-              </div>
-              <div className="bg-gray-800 border border-gray-700 rounded-xl rounded-bl-sm px-3 py-2">
-                <div className="flex gap-1 items-center">
-                  {[0, 1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce"
-                      style={{ animationDelay: `${i * 0.15}s` }}
-                    />
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="chat-drawer"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+            style={{ overflow: 'hidden', backdropFilter: 'blur(12px)' }}
+            className="bg-gray-900/95 border-t border-gray-800"
+          >
+            {chatHistory.length === 0 ? (
+              <div className="px-4 pt-3 pb-2">
+                <p className="text-gray-500 text-xs mb-2">Try asking:</p>
+                <div className="flex flex-wrap gap-2">
+                  {SUGGESTIONS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => sendMessage(s)}
+                      className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-full text-gray-300 transition-colors"
+                    >
+                      {s}
+                    </button>
                   ))}
                 </div>
               </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      )}
-
-      {/* suggestion chips — show when open but no history */}
-      {open && chatHistory.length === 0 && (
-        <div className="bg-gray-900/95 border-t border-gray-800 px-4 pt-3 pb-2" style={{ backdropFilter: 'blur(12px)' }}>
-          <p className="text-gray-500 text-xs mb-2">Try asking:</p>
-          <div className="flex flex-wrap gap-2">
-            {SUGGESTIONS.map((s) => (
-              <button
-                key={s}
-                onClick={() => sendMessage(s)}
-                className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-full text-gray-300 transition-colors"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+            ) : (
+              <div className="overflow-y-auto px-4 pt-3 pb-1" style={{ maxHeight: '260px' }}>
+                {chatHistory.map((msg, i) => (
+                  <Message key={i} msg={msg} />
+                ))}
+                {loading && (
+                  <div className="flex gap-2 justify-start mb-3">
+                    <div className="w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0">
+                      <span className="text-white" style={{ fontSize: 10 }}>G</span>
+                    </div>
+                    <div className="bg-gray-800 border border-gray-700 rounded-xl rounded-bl-sm px-3 py-2">
+                      <div className="flex gap-1 items-center">
+                        {[0, 1, 2].map((i) => (
+                          <div
+                            key={i}
+                            className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce"
+                            style={{ animationDelay: `${i * 0.15}s` }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* bottom bar — always visible */}
       <div

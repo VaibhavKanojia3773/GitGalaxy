@@ -28,6 +28,9 @@ const useStore = create((set, get) => ({
   // agent
   agentPanel: null,
 
+  // expanded file planet
+  expandedFileId: null,
+
   // loading progress (SSE)
   loadingProgress: { stage: '', message: '', pct: 0 },
 
@@ -70,6 +73,8 @@ const useStore = create((set, get) => ({
 
   setAgentPanel: (panel) => set({ agentPanel: panel }),
 
+  setExpandedFile: (fileId) => set({ expandedFileId: fileId }),
+
   setLoadingProgress: (p) => set({ loadingProgress: p }),
 
   setChatHistory: (history) => set({ chatHistory: history }),
@@ -78,6 +83,7 @@ const useStore = create((set, get) => ({
     selectedNode: null,
     selectedNodeId: null,
     agentPanel: null,
+    expandedFileId: null,
     searchResults: [],
     highlightedNodes: new Set(),
     searchQuery: '',
