@@ -366,6 +366,11 @@ export default function Nodes() {
   const issueMeshRef     = useRef()
   const prMeshRef        = useRef()
 
+  // disable raycasting on glow so it never blocks planet click events
+  useEffect(() => {
+    if (glowMeshRef.current) glowMeshRef.current.raycast = () => {}
+  })
+
   // ── rotation + burst accumulators ─────────────────────────────────────────
   const rotsRef  = useRef({ planets: new Float32Array(0), funcs: new Float32Array(0), classes: new Float32Array(0), issues: new Float32Array(0), prs: new Float32Array(0) })
   const burstRef = useRef({ funcs: new Float32Array(0), classes: new Float32Array(0) })

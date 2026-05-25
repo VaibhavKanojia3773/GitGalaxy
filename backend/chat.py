@@ -313,7 +313,16 @@ class ChatEngine:
               "Reference specific file paths and function names when known."
         )
 
-        client   = Groq(api_key=self.groq_key)
+        try:
+            client = Groq(api_key=self.groq_key)
+        except TypeError:
+            # older groq versions pass `proxies` to httpx which removed it in 0.27+
+            # run: pip install --upgrade groq
+            import os
+            for k in ('HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy'):
+                os.environ.pop(k, None)
+            client = Groq(api_key=self.groq_key)
+
         messages = [{'role': 'system', 'content': system}]
         for turn in history[-6:]:
             if isinstance(turn, dict) and 'role' in turn and 'content' in turn:
