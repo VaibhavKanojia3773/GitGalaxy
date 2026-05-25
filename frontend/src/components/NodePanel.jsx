@@ -1,36 +1,83 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { X, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, ChevronDown, ChevronUp, Code, AlertCircle, GitPullRequest, Cpu } from 'lucide-react'
 import useStore from '../store'
 
 const LANG_COLORS = {
-  python: 'bg-blue-800 text-blue-200',
-  javascript: 'bg-yellow-800 text-yellow-200',
-  typescript: 'bg-blue-700 text-blue-100',
-  java: 'bg-orange-800 text-orange-200',
-  go: 'bg-cyan-800 text-cyan-200',
-  default: 'bg-gray-700 text-gray-200',
+  python:     { bg: 'rgba(129,140,248,0.15)', text: '#a5b4fc', border: 'rgba(129,140,248,0.3)' },
+  javascript: { bg: 'rgba(251,191,36,0.12)',  text: '#fcd34d', border: 'rgba(251,191,36,0.3)'  },
+  typescript: { bg: 'rgba(56,189,248,0.12)',  text: '#7dd3fc', border: 'rgba(56,189,248,0.3)'  },
+  java:       { bg: 'rgba(251,146,60,0.12)',  text: '#fdba74', border: 'rgba(251,146,60,0.3)'  },
+  go:         { bg: 'rgba(52,211,153,0.12)',  text: '#6ee7b7', border: 'rgba(52,211,153,0.3)'  },
+}
+const defaultBadge = { bg: 'rgba(148,163,184,0.1)', text: '#94a3b8', border: 'rgba(148,163,184,0.2)' }
+
+function LangBadge({ lang }) {
+  const s = LANG_COLORS[lang] || defaultBadge
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium"
+      style={{ background: s.bg, color: s.text, border: `1px solid ${s.border}` }}>
+      {lang}
+    </span>
+  )
 }
 
-function langBadge(lang) {
-  return LANG_COLORS[lang] || LANG_COLORS.default
+function CodeBlock({ code }) {
+  if (!code) return null
+  const highlighted = code
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/(["'`])((?:\\.|(?!\1)[^\\])*?)\1/g, '<span style="color:#86efac">$1$2$1</span>')
+    .replace(/\b(def|class|return|import|from|if|else|elif|for|while|async|await|const|let|var|function|export|default|type|interface|extends|new|this|try|catch|finally|throw|in|of|and|or|not|True|False|None|null|undefined|true|false)\b/g,
+      '<span style="color:#c084fc">$1</span>')
+    .replace(/(#[^\n]*)$/gm, '<span style="color:#4b5563">$1</span>')
+    .replace(/\b(\d+\.?\d*)\b/g, '<span style="color:#fbbf24">$1</span>')
+    .replace(/\b([a-zA-Z_]\w*)\s*(?=\()/g, '<span style="color:#67e8f9">$1</span>')
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex items-center gap-1.5 px-3 py-1.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}>
+        <div className="w-2 h-2 rounded-full" style={{ background: '#ef4444', opacity: 0.6 }} />
+        <div className="w-2 h-2 rounded-full" style={{ background: '#eab308', opacity: 0.6 }} />
+        <div className="w-2 h-2 rounded-full" style={{ background: '#22c55e', opacity: 0.6 }} />
+        <span className="ml-2 text-xs" style={{ color: '#374151' }}>preview</span>
+      </div>
+      <pre
+        className="p-3 overflow-auto"
+        style={{ maxHeight: 180, color: '#e2e8f0', fontFamily: '"JetBrains Mono","Fira Code",monospace', fontSize: 11, lineHeight: 1.6 }}
+        dangerouslySetInnerHTML={{ __html: highlighted }}
+      />
+    </div>
+  )
+}
+
+function AgentResult({ text }) {
+  if (!text) return null
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl p-3 text-xs leading-relaxed whitespace-pre-line"
+      style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', color: '#cbd5e1' }}
+    >
+      {text}
+    </motion.div>
+  )
 }
 
 export default function NodePanel() {
-  const selectedNode = useStore((s) => s.selectedNode)
+  const selectedNode    = useStore((s) => s.selectedNode)
   const setSelectedNode = useStore((s) => s.setSelectedNode)
-  const graph = useStore((s) => s.graph)
-  const nodeMap = useStore((s) => s.nodeMap)
+  const graph           = useStore((s) => s.graph)
 
   const [bodyExpanded, setBodyExpanded] = useState(false)
-  const [agentText, setAgentText] = useState('')
+  const [agentText, setAgentText]       = useState('')
   const [agentLoading, setAgentLoading] = useState(false)
 
   if (!selectedNode) return null
 
   const repoKey = graph?.metadata?.repo
 
-  function getNearbyNodeIds(count = 10) {
+  function getNearbyIds(count = 10) {
     if (!graph?.nodes) return []
     return graph.nodes
       .filter((n) => n.id !== selectedNode.id && n.type === 'code')
@@ -43,16 +90,14 @@ export default function NodePanel() {
       .map((n) => n.id)
   }
 
-  async function handleExplainCluster() {
+  async function callAgent(url, body) {
     setAgentLoading(true)
     setAgentText('')
-    const nearbyIds = getNearbyNodeIds(10)
-    const ids = [selectedNode.id, ...nearbyIds]
     try {
-      const resp = await fetch('/api/agent/cluster', {
+      const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ node_ids: ids, repo: repoKey }),
+        body: JSON.stringify({ ...body, repo: repoKey }),
       })
       const data = await resp.json()
       setAgentText(data.explanation || '')
@@ -63,112 +108,85 @@ export default function NodePanel() {
     }
   }
 
-  async function handleAnalyseIssue() {
-    setAgentLoading(true)
-    setAgentText('')
-    const nearbyIds = getNearbyNodeIds(5)
-    try {
-      const resp = await fetch('/api/agent/issue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          issue_id: selectedNode.id,
-          repo: repoKey,
-          nearby_node_ids: nearbyIds,
-        }),
-      })
-      const data = await resp.json()
-      setAgentText(data.explanation || '')
-    } catch (err) {
-      setAgentText('Error: ' + err.message)
-    } finally {
-      setAgentLoading(false)
-    }
-  }
-
-  async function handleBlastRadius() {
-    setAgentLoading(true)
-    setAgentText('')
-    const nearbyIds = getNearbyNodeIds(5)
-    try {
-      const resp = await fetch('/api/agent/search-explain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: selectedNode.title || selectedNode.name,
-          result_node_ids: nearbyIds,
-          repo: repoKey,
-        }),
-      })
-      const data = await resp.json()
-      setAgentText(data.explanation || '')
-    } catch (err) {
-      setAgentText('Error: ' + err.message)
-    } finally {
-      setAgentLoading(false)
-    }
-  }
-
-  const isCode = selectedNode.type === 'code'
+  const isCode  = selectedNode.type === 'code'
   const isIssue = selectedNode.type === 'issue'
-  const isPR = selectedNode.type === 'pr'
+  const isPR    = selectedNode.type === 'pr'
 
   return (
     <motion.div
-      className="fixed right-0 top-0 h-full w-80 bg-gray-900/95 backdrop-blur-md border-l border-gray-800 z-20 flex flex-col overflow-hidden"
+      className="fixed right-0 top-0 h-full z-20 flex flex-col overflow-hidden"
+      style={{
+        width: 320,
+        background: 'rgba(8,10,18,0.85)',
+        backdropFilter: 'blur(28px)',
+        WebkitBackdropFilter: 'blur(28px)',
+        borderLeft: '1px solid rgba(255,255,255,0.07)',
+      }}
       initial={{ x: 320, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: 320, opacity: 0 }}
-      transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+      transition={{ type: 'spring', damping: 30, stiffness: 320 }}
     >
       {/* header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-          {isCode ? selectedNode.chunk_type : selectedNode.type}
-        </span>
+      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="flex items-center gap-2">
+          {isCode && <Code size={13} className="text-indigo-400" />}
+          {isIssue && <AlertCircle size={13} className="text-amber-400" />}
+          {isPR && <GitPullRequest size={13} className="text-emerald-400" />}
+          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#64748b' }}>
+            {isCode ? (selectedNode.chunk_type || 'code') : selectedNode.type}
+          </span>
+        </div>
         <button
           onClick={() => setSelectedNode(null)}
-          className="text-gray-500 hover:text-white transition-colors"
+          className="p-1 rounded-lg transition-colors"
+          style={{ color: '#475569' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
         >
-          <X size={16} />
+          <X size={15} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
+        style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,102,241,0.25) transparent' }}>
+
+        {/* ─ Code node ─ */}
         {isCode && (
           <>
             <div>
-              <div className="text-xs text-gray-500 mb-1 truncate">{selectedNode.file_path}</div>
-              <div className="text-white font-semibold text-sm">{selectedNode.name}</div>
-              <span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${langBadge(selectedNode.language)}`}>
-                {selectedNode.language}
-              </span>
+              <p className="text-xs mb-1 truncate" style={{ color: '#475569' }}>{selectedNode.file_path}</p>
+              <p className="font-semibold text-sm text-white mb-2">{selectedNode.name}</p>
+              <LangBadge lang={selectedNode.language} />
             </div>
-            <div>
-              <div className="text-xs text-gray-400 mb-1">Preview</div>
-              <pre className="bg-gray-800 rounded p-2 text-xs text-gray-300 overflow-auto max-h-48 leading-relaxed">
-                {selectedNode.content_preview}
-              </pre>
-            </div>
+            <CodeBlock code={selectedNode.content_preview} />
             <button
-              onClick={handleExplainCluster}
+              onClick={() => callAgent('/api/agent/cluster', { node_ids: [selectedNode.id, ...getNearbyIds(10)] })}
               disabled={agentLoading}
-              className="w-full py-2 bg-indigo-700 hover:bg-indigo-600 disabled:bg-gray-700 rounded-lg text-sm text-white transition-colors"
+              className="w-full py-2.5 text-sm font-medium rounded-xl transition-all flex items-center justify-center gap-2"
+              style={{
+                background: 'rgba(99,102,241,0.15)',
+                border: '1px solid rgba(99,102,241,0.25)',
+                color: '#a5b4fc',
+              }}
             >
-              {agentLoading ? 'Thinking...' : 'Explain cluster nearby'}
+              <Cpu size={13} />
+              {agentLoading ? 'Thinking…' : 'Explain cluster'}
             </button>
           </>
         )}
 
+        {/* ─ Issue node ─ */}
         {isIssue && (
           <>
             <div>
-              <div className="text-xs text-orange-400 mb-1">Issue #{selectedNode.number}</div>
-              <div className="text-white font-semibold text-sm">{selectedNode.title}</div>
+              <p className="text-xs mb-1" style={{ color: '#f59e0b' }}>Issue #{selectedNode.number}</p>
+              <p className="font-semibold text-sm text-white">{selectedNode.title}</p>
               {selectedNode.labels?.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
                   {selectedNode.labels.map((lbl) => (
-                    <span key={lbl} className="px-2 py-0.5 bg-gray-700 rounded-full text-xs text-gray-300">
+                    <span key={lbl} className="px-2 py-0.5 text-xs rounded-full"
+                      style={{ background: 'rgba(251,191,36,0.1)', color: '#fcd34d', border: '1px solid rgba(251,191,36,0.2)' }}>
                       {lbl}
                     </span>
                   ))}
@@ -177,60 +195,56 @@ export default function NodePanel() {
             </div>
             {selectedNode.body && (
               <div>
-                <div className="text-xs text-gray-400 mb-1">Description</div>
-                <div className="text-sm text-gray-300">
-                  {bodyExpanded ? selectedNode.body : selectedNode.body.slice(0, 300)}
-                  {selectedNode.body.length > 300 && (
-                    <button
-                      onClick={() => setBodyExpanded((v) => !v)}
-                      className="ml-1 text-indigo-400 hover:text-indigo-300 inline-flex items-center gap-0.5"
-                    >
-                      {bodyExpanded ? <><ChevronUp size={12} /> less</> : <><ChevronDown size={12} /> more</>}
+                <p className="text-xs mb-1" style={{ color: '#475569' }}>Description</p>
+                <p className="text-sm leading-relaxed" style={{ color: '#94a3b8' }}>
+                  {bodyExpanded ? selectedNode.body : selectedNode.body.slice(0, 280)}
+                  {selectedNode.body.length > 280 && (
+                    <button onClick={() => setBodyExpanded(v => !v)} className="ml-1 inline-flex items-center gap-0.5" style={{ color: '#818cf8' }}>
+                      {bodyExpanded ? <><ChevronUp size={11} /> less</> : <><ChevronDown size={11} /> more</>}
                     </button>
                   )}
-                </div>
+                </p>
               </div>
             )}
             <button
-              onClick={handleAnalyseIssue}
+              onClick={() => callAgent('/api/agent/issue', { issue_id: selectedNode.id, nearby_node_ids: getNearbyIds(5) })}
               disabled={agentLoading}
-              className="w-full py-2 bg-orange-700 hover:bg-orange-600 disabled:bg-gray-700 rounded-lg text-sm text-white transition-colors"
+              className="w-full py-2.5 text-sm font-medium rounded-xl transition-all flex items-center justify-center gap-2"
+              style={{ background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.25)', color: '#fcd34d' }}
             >
-              {agentLoading ? 'Analysing...' : 'Analyse impact'}
+              <AlertCircle size={13} />
+              {agentLoading ? 'Analysing…' : 'Analyse impact'}
             </button>
           </>
         )}
 
+        {/* ─ PR node ─ */}
         {isPR && (
           <>
             <div>
-              <div className="text-xs text-green-400 mb-1">PR #{selectedNode.number}</div>
-              <div className="text-white font-semibold text-sm">{selectedNode.title}</div>
-              <span className="inline-block mt-1 px-2 py-0.5 bg-green-900 text-green-300 rounded text-xs">
+              <p className="text-xs mb-1" style={{ color: '#4ade80' }}>PR #{selectedNode.number}</p>
+              <p className="font-semibold text-sm text-white">{selectedNode.title}</p>
+              <span className="inline-block mt-1.5 px-2 py-0.5 text-xs rounded-full"
+                style={{ background: 'rgba(74,222,128,0.12)', color: '#86efac', border: '1px solid rgba(74,222,128,0.25)' }}>
                 {selectedNode.state}
               </span>
             </div>
             {selectedNode.body && (
-              <div>
-                <div className="text-xs text-gray-400 mb-1">Description</div>
-                <div className="text-sm text-gray-300">{selectedNode.body.slice(0, 300)}</div>
-              </div>
+              <p className="text-sm leading-relaxed" style={{ color: '#94a3b8' }}>{selectedNode.body.slice(0, 280)}</p>
             )}
             <button
-              onClick={handleBlastRadius}
+              onClick={() => callAgent('/api/agent/search-explain', { query: selectedNode.title, result_node_ids: getNearbyIds(5) })}
               disabled={agentLoading}
-              className="w-full py-2 bg-green-700 hover:bg-green-600 disabled:bg-gray-700 rounded-lg text-sm text-white transition-colors"
+              className="w-full py-2.5 text-sm font-medium rounded-xl transition-all flex items-center justify-center gap-2"
+              style={{ background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.25)', color: '#86efac' }}
             >
-              {agentLoading ? 'Analysing...' : 'Analyse blast radius'}
+              <GitPullRequest size={13} />
+              {agentLoading ? 'Analysing…' : 'Analyse blast radius'}
             </button>
           </>
         )}
 
-        {agentText && (
-          <div className="p-3 bg-gray-800 rounded-lg text-xs text-gray-300 leading-relaxed whitespace-pre-line border border-gray-700">
-            {agentText}
-          </div>
-        )}
+        <AgentResult text={agentText} />
       </div>
     </motion.div>
   )

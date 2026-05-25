@@ -1,20 +1,34 @@
-import { useState } from 'react'
-import { Search } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Search, Sparkles, X } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import useStore from '../store'
 
 export default function SearchBar() {
-  const [query, setQuery] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [query, setQuery]         = useState('')
+  const [loading, setLoading]     = useState(false)
   const [agentText, setAgentText] = useState('')
   const [agentLoading, setAgentLoading] = useState(false)
+  const [focused, setFocused]     = useState(false)
+  const inputRef = useRef(null)
 
-  const graph = useStore((s) => s.graph)
-  const nodeMap = useStore((s) => s.nodeMap)
-  const searchResults = useStore((s) => s.searchResults)
+  const graph          = useStore((s) => s.graph)
+  const nodeMap        = useStore((s) => s.nodeMap)
+  const searchResults  = useStore((s) => s.searchResults)
   const setSearchResults = useStore((s) => s.setSearchResults)
-  const setCameraTarget = useStore((s) => s.setCameraTarget)
-
+  const setCameraTarget  = useStore((s) => s.setCameraTarget)
   const repoKey = graph?.metadata?.repo
+
+  // Cmd/Ctrl+K to focus
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        inputRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   async function handleSearch(e) {
     e.preventDefault()
@@ -30,11 +44,7 @@ export default function SearchBar() {
       const data = await resp.json()
       const results = data.results || []
       setSearchResults(results)
-
-      // fly camera to centroid of top-3
-      const top3 = results.slice(0, 3)
-        .map((r) => nodeMap[r.node_id])
-        .filter(Boolean)
+      const top3 = results.slice(0, 3).map((r) => nodeMap[r.node_id]).filter(Boolean)
       if (top3.length) {
         const cx = top3.reduce((s, n) => s + n.x, 0) / top3.length
         const cy = top3.reduce((s, n) => s + n.y, 0) / top3.length
@@ -42,7 +52,7 @@ export default function SearchBar() {
         setCameraTarget({ x: cx, y: cy, z: cz + 20 })
       }
     } catch (err) {
-      console.error('Search error:', err)
+      console.error(err)
     } finally {
       setLoading(false)
     }
@@ -71,47 +81,78 @@ export default function SearchBar() {
   }
 
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-20 w-full max-w-md px-4">
-      <div className="bg-gray-900/80 backdrop-blur-md border border-gray-700 rounded-xl shadow-2xl p-3">
-        <form onSubmit={handleSearch} className="flex gap-2">
-          <div className="flex-1 flex items-center gap-2 bg-gray-800 rounded-lg px-3">
-            <Search size={14} className="text-gray-400 shrink-0" />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search code semantically..."
-              className="flex-1 bg-transparent py-2 text-sm text-white placeholder-gray-500 focus:outline-none"
-            />
-          </div>
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-20 w-full max-w-lg px-4">
+      <motion.div
+        animate={{ boxShadow: focused ? '0 0 0 1px rgba(99,102,241,0.5), 0 20px 60px rgba(0,0,0,0.6)' : '0 8px 32px rgba(0,0,0,0.4)' }}
+        transition={{ duration: 0.2 }}
+        style={{
+          background: 'rgba(15,17,26,0.75)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          border: focused ? '1px solid rgba(99,102,241,0.4)' : '1px solid rgba(255,255,255,0.07)',
+          borderRadius: '16px',
+          padding: '10px 12px',
+        }}
+      >
+        <form onSubmit={handleSearch} className="flex gap-2 items-center">
+          <Search size={15} className={`shrink-0 transition-colors ${focused ? 'text-indigo-400' : 'text-gray-500'}`} />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            placeholder="Search code… (⌘K)"
+            className="flex-1 bg-transparent text-sm text-white placeholder-gray-600 focus:outline-none"
+          />
+          {query && (
+            <button type="button" onClick={() => { setQuery(''); setSearchResults([]) }} className="text-gray-600 hover:text-gray-400">
+              <X size={13} />
+            </button>
+          )}
           <button
             type="submit"
-            disabled={loading}
-            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 rounded-lg text-sm text-white transition-colors"
+            disabled={loading || !query.trim()}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg transition-all"
+            style={{ background: loading ? 'rgba(79,70,229,0.3)' : 'rgba(99,102,241,0.9)', color: '#fff' }}
           >
-            {loading ? '...' : 'Go'}
+            {loading ? '…' : 'Go'}
           </button>
         </form>
 
-        {searchResults.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-gray-700 flex items-center justify-between gap-2">
-            <span className="text-xs text-gray-400">{searchResults.length} matches found</span>
-            <button
-              onClick={handleExplain}
-              disabled={agentLoading}
-              className="text-xs text-indigo-400 hover:text-indigo-300 disabled:text-gray-600 transition-colors"
+        <AnimatePresence>
+          {searchResults.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mt-2 pt-2 overflow-hidden"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
             >
-              {agentLoading ? 'Explaining...' : 'Explain results'}
-            </button>
-          </div>
-        )}
-
-        {agentText && (
-          <div className="mt-2 pt-2 border-t border-gray-700 text-xs text-gray-300 whitespace-pre-line leading-relaxed">
-            {agentText}
-          </div>
-        )}
-      </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs" style={{ color: 'rgba(148,163,184,0.8)' }}>
+                  {searchResults.length} matches
+                </span>
+                <button
+                  onClick={handleExplain}
+                  disabled={agentLoading}
+                  className="flex items-center gap-1 text-xs transition-colors"
+                  style={{ color: agentLoading ? '#4b5563' : '#818cf8' }}
+                >
+                  <Sparkles size={11} />
+                  {agentLoading ? 'Thinking…' : 'AI explain'}
+                </button>
+              </div>
+              {agentText && (
+                <p className="mt-2 text-xs leading-relaxed whitespace-pre-line" style={{ color: '#cbd5e1' }}>
+                  {agentText}
+                </p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
     </div>
   )
 }
