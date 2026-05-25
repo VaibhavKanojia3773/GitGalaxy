@@ -30,8 +30,9 @@ const LANG_COLORS = {
 function getLang(fp) { return LANG_BY_EXT[(fp.split('.').pop() || '').toLowerCase()] || 'unknown' }
 function easeOut(t) { return 1 - (1 - t) * (1 - t) }
 
-// ── Planet shader: fresnel atmosphere + subtle noise surface ─────────────────
+// ── Planet shader: fresnel atmosphere + noise surface + vertex displacement ───
 const PLANET_VERT = /* glsl */`
+  attribute mat4 instanceMatrix;
   attribute vec3 instanceColor;
   uniform float uTime;
 
@@ -40,14 +41,35 @@ const PLANET_VERT = /* glsl */`
   varying vec3 vViewPos;
   varying vec2 vUv;
 
-  void main() {
-    vColor  = instanceColor;
-    vUv     = uv;
-    vNormal = normalize(normalMatrix * mat3(instanceMatrix) * normal);
+  // noise for vertex displacement
+  float hash3(vec3 p) {
+    return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+  }
+  float noise3(vec3 p) {
+    vec3 i = floor(p); vec3 f = fract(p);
+    vec3 u = f*f*(3.0-2.0*f);
+    return mix(mix(mix(hash3(i),           hash3(i+vec3(1,0,0)),u.x),
+                   mix(hash3(i+vec3(0,1,0)),hash3(i+vec3(1,1,0)),u.x),u.y),
+               mix(mix(hash3(i+vec3(0,0,1)),hash3(i+vec3(1,0,1)),u.x),
+                   mix(hash3(i+vec3(0,1,1)),hash3(i+vec3(1,1,1)),u.x),u.y),u.z);
+  }
 
-    vec4 mvPos = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
-    vViewPos   = -mvPos.xyz;
-    gl_Position = projectionMatrix * mvPos;
+  void main() {
+    vColor = instanceColor;
+    vUv    = uv;
+
+    // vertex displacement — makes planets lumpy/organic, not perfect spheres
+    float d = noise3(normal * 3.5 + uTime * 0.012) * 0.09
+            + noise3(normal * 7.0 - uTime * 0.008) * 0.045;
+    vec3 displaced = position + normal * d;
+
+    // displaced normal (approximate — nudge along displacement gradient)
+    vec3 dispNormal = normalize(normal + vec3(d) * 0.4);
+    vNormal  = normalize(normalMatrix * mat3(instanceMatrix) * dispNormal);
+
+    vec4 mvPos   = modelViewMatrix * instanceMatrix * vec4(displaced, 1.0);
+    vViewPos     = -mvPos.xyz;
+    gl_Position  = projectionMatrix * mvPos;
   }
 `
 
@@ -106,16 +128,29 @@ const PLANET_FRAG = /* glsl */`
 
 // ── Moon shader: simpler glow ─────────────────────────────────────────────────
 const MOON_VERT = /* glsl */`
+  attribute mat4 instanceMatrix;
   attribute vec3 instanceColor;
+  uniform float uTime;
   varying vec3 vColor;
   varying vec3 vNormal;
   varying vec3 vViewPos;
+
+  float hashM(vec3 p) { return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453); }
+  float noiseM(vec3 p) {
+    vec3 i=floor(p); vec3 f=fract(p); vec3 u=f*f*(3.0-2.0*f);
+    return mix(mix(mix(hashM(i),hashM(i+vec3(1,0,0)),u.x),mix(hashM(i+vec3(0,1,0)),hashM(i+vec3(1,1,0)),u.x),u.y),
+               mix(mix(hashM(i+vec3(0,0,1)),hashM(i+vec3(1,0,1)),u.x),mix(hashM(i+vec3(0,1,1)),hashM(i+vec3(1,1,1)),u.x),u.y),u.z);
+  }
+
   void main() {
     vColor  = instanceColor;
-    vNormal = normalize(normalMatrix * mat3(instanceMatrix) * normal);
-    vec4 mvPos = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
-    vViewPos = -mvPos.xyz;
-    gl_Position = projectionMatrix * mvPos;
+    // moons are cratered — stronger displacement, higher frequency
+    float d = noiseM(normal * 6.0) * 0.14 + noiseM(normal * 13.0) * 0.06;
+    vec3 displaced = position + normal * d;
+    vNormal  = normalize(normalMatrix * mat3(instanceMatrix) * normal);
+    vec4 mvPos   = modelViewMatrix * instanceMatrix * vec4(displaced, 1.0);
+    vViewPos     = -mvPos.xyz;
+    gl_Position  = projectionMatrix * mvPos;
   }
 `
 const MOON_FRAG = /* glsl */`
@@ -251,7 +286,7 @@ export default function Nodes() {
 
   // ── shader uniforms ────────────────────────────────────────────────────────
   const planetUniforms = useMemo(() => ({ uTime: { value: 0 } }), [])
-  const moonUniforms   = useMemo(() => ({}), [])
+  const moonUniforms   = useMemo(() => ({ uTime: { value: 0 } }), [])
 
   // ── mesh refs ──────────────────────────────────────────────────────────────
   const planetMeshRef    = useRef()
@@ -306,6 +341,7 @@ export default function Nodes() {
 
     // update shader time
     planetUniforms.uTime.value = t
+    moonUniforms.uTime.value   = t
 
     // ─ file planets ─
     const pm = planetMeshRef.current
