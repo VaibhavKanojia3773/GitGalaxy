@@ -6,7 +6,8 @@ export default function LoadingOverlay() {
   const displayMessage = message || 'Preparing galaxy...'
 
   return (
-    <div className="fixed inset-0 bg-gray-950 flex flex-col items-center justify-center z-50">
+    <div className="fixed inset-0 flex flex-col items-center justify-center z-50"
+         style={{ background: 'rgba(2,6,23,0.7)', backdropFilter: 'blur(8px)' }}>
       <div className="relative w-32 h-32 mb-8">
         {[...Array(3)].map((_, i) => (
           <div

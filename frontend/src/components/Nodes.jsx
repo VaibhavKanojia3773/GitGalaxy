@@ -154,8 +154,11 @@ const PLANET_FRAG = /* glsl */`
     vec3 N = normalize(vNormal);
     vec3 V = normalize(vViewPos);
     vec3 L = normalize(vec3(0.6, 0.8, 0.5));
-    float diff    = max(dot(N, L), 0.0) * 0.72 + 0.28;
-    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.5);
+
+    // sharper day/night terminator
+    float ndotl = dot(N, L);
+    float diff  = smoothstep(-0.18, 0.35, ndotl) * 0.85 + 0.12;
+    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.2);
 
     int ptype = planetType(vColor);
     vec3 surface;
@@ -165,13 +168,34 @@ const PLANET_FRAG = /* glsl */`
     else if (ptype == 4) surface = icePlanet(vColor, vPos, uTime);
     else                 surface = desert(vColor, vPos, uTime);
 
-    vec3 base = surface * diff;
-    base += vColor * fresnel * 1.6;  // atmosphere rim
+    // cloud layer on gas giants and ocean worlds
+    if (ptype == 0 || ptype == 2) {
+      float c = fbm(vPos * 2.6 + vec3(uTime * 0.009, 0.0, uTime * 0.007));
+      float cloudMask = smoothstep(0.5, 0.78, c);
+      vec3  cloudCol  = vec3(0.90, 0.93, 1.0) * (diff * 0.85 + 0.15);
+      surface = mix(surface, cloudCol, cloudMask * 0.42);
+    }
 
-    // specular
+    vec3 base = surface * diff;
+
+    // atmosphere rim glow (brighter on ice/ocean — scattering effect)
+    float rimStr = (ptype == 2 || ptype == 4) ? 2.2 : 1.6;
+    base += vColor * fresnel * rimStr;
+
+    // type-specific specular: strong for ocean/ice, subtle for others
     vec3 H    = normalize(L + V);
-    float spec = pow(max(dot(N, H), 0.0), 52.0);
-    base += vec3(1.0) * spec * 0.3;
+    float specPow = (ptype == 2 || ptype == 4) ? 96.0 : 42.0;
+    float specStr = (ptype == 2 || ptype == 4) ? 0.55 : 0.18;
+    float spec = pow(max(dot(N, H), 0.0), specPow);
+    base += vec3(0.85, 0.92, 1.0) * spec * specStr;
+
+    // lava self-glow on dark side
+    if (ptype == 3) {
+      float glow = fbm(vPos * 5.0 + vec3(0.0, uTime * 0.04, 0.0));
+      float hotspot = smoothstep(0.58, 0.85, glow);
+      float darkSide = 1.0 - smoothstep(-0.1, 0.3, ndotl);
+      base += vec3(1.0, 0.3, 0.02) * hotspot * darkSide * 0.8;
+    }
 
     base += vColor * 0.1; // emissive for bloom
 
@@ -253,31 +277,34 @@ function PlanetRings({ filePlanets, expandedFileId }) {
   })
 }
 
-// ── Atmosphere shell (shown when planet is expanded) ─────────────────────────
+// ── Atmosphere shell — always visible, brighter when expanded ────────────────
 function AtmosphereShells({ filePlanets, expandedFileId }) {
-  const planet = filePlanets.find(p => p.file_path === expandedFileId)
-  if (!planet) return null
-  const col = LANG_COLORS[planet.lang] || LANG_COLORS.unknown
-  return (
-    <group position={[planet.x, planet.y, planet.z]}>
-      <mesh>
-        <sphereGeometry args={[planet.size * 1.55, 24, 24]} />
-        <meshBasicMaterial
-          color={col} transparent opacity={0.07}
-          side={THREE.BackSide} depthWrite={false}
-          blending={THREE.AdditiveBlending}
-        />
-      </mesh>
-      <mesh>
-        <sphereGeometry args={[planet.size * 1.85, 24, 24]} />
-        <meshBasicMaterial
-          color={col} transparent opacity={0.03}
-          side={THREE.BackSide} depthWrite={false}
-          blending={THREE.AdditiveBlending}
-        />
-      </mesh>
-    </group>
-  )
+  return filePlanets.map(planet => {
+    const col = LANG_COLORS[planet.lang] || LANG_COLORS.unknown
+    const isExp = planet.file_path === expandedFileId
+    return (
+      <group key={planet.id} position={[planet.x, planet.y, planet.z]}>
+        <mesh>
+          <sphereGeometry args={[planet.size * 1.48, 20, 20]} />
+          <meshBasicMaterial
+            color={col} transparent opacity={isExp ? 0.11 : 0.032}
+            side={THREE.BackSide} depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+        {isExp && (
+          <mesh>
+            <sphereGeometry args={[planet.size * 1.9, 20, 20]} />
+            <meshBasicMaterial
+              color={col} transparent opacity={0.045}
+              side={THREE.BackSide} depthWrite={false}
+              blending={THREE.AdditiveBlending}
+            />
+          </mesh>
+        )}
+      </group>
+    )
+  })
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -609,7 +636,7 @@ export default function Nodes() {
       {/* glow halos — additive blending, rendered before planets */}
       {filePlanets.length > 0 && (
         <instancedMesh ref={glowMeshRef} args={[PLANET_GEO, null, filePlanets.length]} frustumCulled={false} renderOrder={-1}>
-          <meshBasicMaterial vertexColors transparent opacity={0.06} depthWrite={false} blending={THREE.AdditiveBlending} />
+          <meshBasicMaterial vertexColors transparent opacity={0.11} depthWrite={false} blending={THREE.AdditiveBlending} />
         </instancedMesh>
       )}
 
