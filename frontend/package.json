@@ -13,7 +13,7 @@
     "@radix-ui/react-tooltip": "^1.1.0",
     "@react-three/drei": "^9.115.0",
     "@react-three/fiber": "^8.17.0",
-    "@react-three/postprocessing": "^3.0.4",
+    "@react-three/postprocessing": "^2.16.0",
     "framer-motion": "^12.40.0",
     "lucide-react": "^0.468.0",
     "react": "^18.3.0",

@@ -30,7 +30,19 @@ const LANG_COLORS = {
 function getLang(fp) { return LANG_BY_EXT[(fp.split('.').pop() || '').toLowerCase()] || 'unknown' }
 function easeOut(t) { return 1 - (1 - t) * (1 - t) }
 
-// ── Planet shader: fresnel atmosphere + noise surface + vertex displacement ───
+// ── Shared GLSL noise helpers ────────────────────────────────────────────────
+const GLSL_NOISE = /* glsl */`
+  float hash2(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+  float hash3(vec3 p){ return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453); }
+  float n2(vec2 p){ vec2 i=floor(p),f=fract(p),u=f*f*(3.-2.*f);
+    return mix(mix(hash2(i),hash2(i+vec2(1,0)),u.x),mix(hash2(i+vec2(0,1)),hash2(i+vec2(1,1)),u.x),u.y); }
+  float n3(vec3 p){ vec3 i=floor(p),f=fract(p),u=f*f*(3.-2.*f);
+    return mix(mix(mix(hash3(i),hash3(i+vec3(1,0,0)),u.x),mix(hash3(i+vec3(0,1,0)),hash3(i+vec3(1,1,0)),u.x),u.y),
+               mix(mix(hash3(i+vec3(0,0,1)),hash3(i+vec3(1,0,1)),u.x),mix(hash3(i+vec3(0,1,1)),hash3(i+vec3(1,1,1)),u.x),u.y),u.z); }
+  float fbm(vec3 p){ return n3(p)*0.5+n3(p*2.1)*0.25+n3(p*4.3)*0.125; }
+`
+
+// ── Planet vertex shader (organic displacement) ───────────────────────────────
 const PLANET_VERT = /* glsl */`
   attribute mat4 instanceMatrix;
   attribute vec3 instanceColor;
@@ -40,87 +52,128 @@ const PLANET_VERT = /* glsl */`
   varying vec3 vNormal;
   varying vec3 vViewPos;
   varying vec2 vUv;
+  varying vec3 vPos;
 
-  // noise for vertex displacement
-  float hash3(vec3 p) {
-    return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
-  }
-  float noise3(vec3 p) {
-    vec3 i = floor(p); vec3 f = fract(p);
-    vec3 u = f*f*(3.0-2.0*f);
-    return mix(mix(mix(hash3(i),           hash3(i+vec3(1,0,0)),u.x),
-                   mix(hash3(i+vec3(0,1,0)),hash3(i+vec3(1,1,0)),u.x),u.y),
-               mix(mix(hash3(i+vec3(0,0,1)),hash3(i+vec3(1,0,1)),u.x),
-                   mix(hash3(i+vec3(0,1,1)),hash3(i+vec3(1,1,1)),u.x),u.y),u.z);
-  }
+  ${GLSL_NOISE}
 
   void main() {
     vColor = instanceColor;
     vUv    = uv;
+    vPos   = normal; // world-space normal as surface coord
 
-    // vertex displacement — makes planets lumpy/organic, not perfect spheres
-    float d = noise3(normal * 3.5 + uTime * 0.012) * 0.09
-            + noise3(normal * 7.0 - uTime * 0.008) * 0.045;
-    vec3 displaced = position + normal * d;
+    float d = n3(normal * 3.5 + uTime * 0.01) * 0.07
+            + n3(normal * 7.0 - uTime * 0.007) * 0.035;
+    vec3 displaced   = position + normal * d;
+    vec3 dispNormal  = normalize(normal + vec3(d) * 0.35);
+    vNormal          = normalize(normalMatrix * mat3(instanceMatrix) * dispNormal);
 
-    // displaced normal (approximate — nudge along displacement gradient)
-    vec3 dispNormal = normalize(normal + vec3(d) * 0.4);
-    vNormal  = normalize(normalMatrix * mat3(instanceMatrix) * dispNormal);
-
-    vec4 mvPos   = modelViewMatrix * instanceMatrix * vec4(displaced, 1.0);
-    vViewPos     = -mvPos.xyz;
-    gl_Position  = projectionMatrix * mvPos;
+    vec4 mvPos  = modelViewMatrix * instanceMatrix * vec4(displaced, 1.0);
+    vViewPos    = -mvPos.xyz;
+    gl_Position = projectionMatrix * mvPos;
   }
 `
 
+// ── Planet fragment: 5 distinct surface types driven by hue ─────────────────
 const PLANET_FRAG = /* glsl */`
   uniform float uTime;
-
   varying vec3 vColor;
   varying vec3 vNormal;
   varying vec3 vViewPos;
   varying vec2 vUv;
+  varying vec3 vPos;
 
-  // simple hash noise for surface variation
-  float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  ${GLSL_NOISE}
+
+  // ─ Gas giant banding (Python / indigo hues) ─
+  vec3 gasGiant(vec3 col, vec3 p, float t) {
+    float lat   = p.y;
+    float band  = sin(lat * 18.0 + n2(vec2(lat*3.0, t*0.05))*2.5) * 0.5 + 0.5;
+    float storm = smoothstep(0.48, 0.52, n2(vec2(p.x*4.0+t*0.02, lat*6.0)));
+    vec3  dark  = col * 0.4;
+    vec3  light = col * 1.6 + vec3(0.1,0.05,0.2);
+    vec3  base  = mix(dark, light, band);
+    base += vec3(0.9,0.7,1.0) * storm * 0.25; // white storm spot
+    return base;
   }
-  float noise(vec2 p) {
-    vec2 i = floor(p); vec2 f = fract(p);
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i), hash(i+vec2(1,0)), u.x),
-               mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), u.x), u.y);
+
+  // ─ Desert / rocky (JavaScript amber, Java orange) ─
+  vec3 desert(vec3 col, vec3 p, float t) {
+    float rock = fbm(p * 4.0 + t*0.008);
+    float dune = n2(vec2(p.x*3.0, p.z*3.0+t*0.01)) * 0.5 + 0.5;
+    vec3 sand  = col * 1.4;
+    vec3 dark  = col * 0.3 + vec3(0.05,0.02,0.0);
+    return mix(dark, sand, rock * 0.6 + dune * 0.4);
+  }
+
+  // ─ Ice / crystal (TypeScript sky-blue, Go teal) ─
+  vec3 icePlanet(vec3 col, vec3 p, float t) {
+    float crack = abs(sin(fbm(p*6.0)*12.0));
+    float polar = smoothstep(0.5, 0.9, abs(p.y)); // polar ice caps
+    vec3  ice   = vec3(0.75, 0.92, 1.0);
+    vec3  deep  = col * 0.7;
+    vec3  base  = mix(deep, ice, crack * 0.4 + polar * 0.6);
+    base += ice * 0.1 * sin(t*0.3 + p.x*8.0); // shimmer
+    return base;
+  }
+
+  // ─ Lava / volcanic (Rust, Ruby red-orange) ─
+  vec3 lava(vec3 col, vec3 p, float t) {
+    float flow = fbm(p * 5.0 + vec3(0.0, t*0.04, 0.0));
+    float hot  = smoothstep(0.55, 0.85, flow);
+    vec3  dark = vec3(0.05, 0.01, 0.0);
+    vec3  glow = vec3(1.0, 0.35, 0.02);
+    return mix(dark, glow, hot);
+  }
+
+  // ─ Ocean world (Go teal, deep blue) ─
+  vec3 ocean(vec3 col, vec3 p, float t) {
+    float wave = n2(vec2(p.x*5.0 + t*0.06, p.z*5.0 - t*0.04)) * 0.5 + 0.5;
+    float land = smoothstep(0.55, 0.65, fbm(p * 3.0)); // continents
+    vec3 water = col * (0.8 + wave * 0.4);
+    vec3 terra = vec3(0.2, 0.45, 0.15);
+    return mix(water, terra, land * 0.5);
+  }
+
+  // ─ Hue classifier (RGB → planet type 0-4) ─
+  int planetType(vec3 c) {
+    float maxC = max(c.r, max(c.g, c.b));
+    // purple/indigo (Python) → gas giant
+    if (c.b > 0.45 && c.r > 0.3 && c.g < 0.55) return 0;
+    // amber/yellow (JavaScript) → desert
+    if (c.r > 0.7 && c.g > 0.5 && c.b < 0.3) return 1;
+    // teal/cyan (Go, TypeScript) → ice+ocean mix
+    if (c.g > 0.55 && c.b > 0.45 && c.r < 0.5) return 2;
+    // red/orange (Java, Ruby, Rust) → lava
+    if (c.r > 0.75 && c.g < 0.55 && c.b < 0.5) return 3;
+    // sky blue (TypeScript strong blue) → ice
+    if (c.b > 0.7 && c.g > 0.5 && c.r < 0.35) return 4;
+    return 1; // default: rocky desert
   }
 
   void main() {
     vec3 N = normalize(vNormal);
     vec3 V = normalize(vViewPos);
-
-    // diffuse
     vec3 L = normalize(vec3(0.6, 0.8, 0.5));
-    float diff = max(dot(N, L), 0.0) * 0.75 + 0.25;
+    float diff    = max(dot(N, L), 0.0) * 0.72 + 0.28;
+    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.5);
 
-    // surface noise bump (procedural latitude/longitude texture)
-    float n1 = noise(vUv * 8.0 + uTime * 0.04);
-    float n2 = noise(vUv * 16.0 - uTime * 0.02);
-    float surface = n1 * 0.55 + n2 * 0.25;
+    int ptype = planetType(vColor);
+    vec3 surface;
+    if      (ptype == 0) surface = gasGiant(vColor, vPos, uTime);
+    else if (ptype == 2) surface = ocean(vColor, vPos, uTime);
+    else if (ptype == 3) surface = lava(vColor, vPos, uTime);
+    else if (ptype == 4) surface = icePlanet(vColor, vPos, uTime);
+    else                 surface = desert(vColor, vPos, uTime);
 
-    // fresnel atmosphere rim
-    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.8);
-
-    vec3 base = vColor * diff;
-    // darken surface slightly by noise to simulate terrain
-    base *= (0.78 + surface * 0.44);
-    // add bright atmosphere glow on rim
-    base += vColor * fresnel * 1.8;
+    vec3 base = surface * diff;
+    base += vColor * fresnel * 1.6;  // atmosphere rim
 
     // specular
-    vec3 H = normalize(L + V);
-    float spec = pow(max(dot(N, H), 0.0), 48.0);
-    base += vec3(1.0) * spec * 0.35;
+    vec3 H    = normalize(L + V);
+    float spec = pow(max(dot(N, H), 0.0), 52.0);
+    base += vec3(1.0) * spec * 0.3;
 
-    // slight emissive so bloom picks it up
-    base += vColor * 0.12;
+    base += vColor * 0.1; // emissive for bloom
 
     gl_FragColor = vec4(base, 1.0);
   }
@@ -135,19 +188,14 @@ const MOON_VERT = /* glsl */`
   varying vec3 vNormal;
   varying vec3 vViewPos;
 
-  float hashM(vec3 p) { return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453); }
-  float noiseM(vec3 p) {
-    vec3 i=floor(p); vec3 f=fract(p); vec3 u=f*f*(3.0-2.0*f);
-    return mix(mix(mix(hashM(i),hashM(i+vec3(1,0,0)),u.x),mix(hashM(i+vec3(0,1,0)),hashM(i+vec3(1,1,0)),u.x),u.y),
-               mix(mix(hashM(i+vec3(0,0,1)),hashM(i+vec3(1,0,1)),u.x),mix(hashM(i+vec3(0,1,1)),hashM(i+vec3(1,1,1)),u.x),u.y),u.z);
-  }
+  ${GLSL_NOISE}
 
   void main() {
-    vColor  = instanceColor;
-    // moons are cratered — stronger displacement, higher frequency
-    float d = noiseM(normal * 6.0) * 0.14 + noiseM(normal * 13.0) * 0.06;
+    vColor = instanceColor;
+    // cratered surface — stronger, higher-frequency displacement
+    float d = n3(normal * 7.0) * 0.16 + n3(normal * 14.0) * 0.07;
     vec3 displaced = position + normal * d;
-    vNormal  = normalize(normalMatrix * mat3(instanceMatrix) * normal);
+    vNormal  = normalize(normalMatrix * mat3(instanceMatrix) * normalize(normal + vec3(d)*0.3));
     vec4 mvPos   = modelViewMatrix * instanceMatrix * vec4(displaced, 1.0);
     vViewPos     = -mvPos.xyz;
     gl_Position  = projectionMatrix * mvPos;
@@ -160,23 +208,18 @@ const MOON_FRAG = /* glsl */`
   void main() {
     vec3 N = normalize(vNormal);
     vec3 V = normalize(vViewPos);
-    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.5);
     vec3 L = normalize(vec3(0.6, 0.8, 0.5));
-    float diff = max(dot(N, L), 0.0) * 0.7 + 0.3;
+    float diff    = max(dot(N, L), 0.0) * 0.68 + 0.32;
+    float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.2);
+    // specular
+    vec3  H    = normalize(L + V);
+    float spec = pow(max(dot(N, H), 0.0), 38.0);
     vec3 col = vColor * diff;
-    col += vColor * fresnel * 2.2;
-    col += vColor * 0.25;  // emissive for bloom
+    col += vColor * fresnel * 2.0;
+    col += vec3(1.0) * spec * 0.2;
+    col += vColor * 0.2;
     gl_FragColor = vec4(col, 1.0);
   }
-`
-
-// ── Glow halo material (additive sprites) ────────────────────────────────────
-const GLOW_FRAG = /* glsl */`
-  attribute vec3 instanceColor;
-  varying vec3 vColor;
-  varying vec2 vUv;
-  attribute vec3 instanceColor2; // unused alias trick
-  void main() {}
 `
 
 // ── Planet decorative rings ──────────────────────────────────────────────────
