@@ -8,28 +8,43 @@ import Nodes from './Nodes'
 import Edges from './Edges'
 
 // ── Camera fly controller ─────────────────────────────────────────────────────
+// Lerps both camera position AND the OrbitControls target so the view turns to
+// face the destination node. A manual drag cancels the flight.
 function CameraController() {
-  const { camera } = useThree()
+  const { camera, controls } = useThree()
   const cameraTarget = useStore((s) => s.cameraTarget)
-  const targetRef = useRef(null)
-  const lerpRef   = useRef(false)
 
-  if (cameraTarget && cameraTarget !== targetRef.current) {
-    targetRef.current = cameraTarget
-    lerpRef.current   = true
+  const seenRef    = useRef(null)
+  const flyingRef  = useRef(false)
+  const desiredPos = useRef(new THREE.Vector3())
+  const desiredLook = useRef(new THREE.Vector3())
+  const hasLookRef = useRef(false)
+
+  if (cameraTarget && cameraTarget !== seenRef.current) {
+    seenRef.current = cameraTarget
+    flyingRef.current = true
+    desiredPos.current.set(cameraTarget.x, cameraTarget.y, cameraTarget.z)
+    hasLookRef.current = !!cameraTarget.lookAt
+    if (cameraTarget.lookAt) {
+      desiredLook.current.set(cameraTarget.lookAt.x, cameraTarget.lookAt.y, cameraTarget.lookAt.z)
+    }
   }
 
+  useEffect(() => {
+    if (!controls) return
+    const onUserDrag = () => { flyingRef.current = false }
+    controls.addEventListener('start', onUserDrag)
+    return () => controls.removeEventListener('start', onUserDrag)
+  }, [controls])
+
   useFrame(() => {
-    if (!lerpRef.current || !targetRef.current) return
-    const { x, y, z } = targetRef.current
-    const dx = x - camera.position.x
-    const dy = y - camera.position.y
-    const dz = z - camera.position.z
-    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
-    if (dist < 0.1) { lerpRef.current = false; return }
-    camera.position.x += dx * 0.06
-    camera.position.y += dy * 0.06
-    camera.position.z += dz * 0.06
+    if (!flyingRef.current) return
+    camera.position.lerp(desiredPos.current, 0.06)
+    if (controls && hasLookRef.current) {
+      controls.target.lerp(desiredLook.current, 0.08)
+      controls.update()
+    }
+    if (camera.position.distanceTo(desiredPos.current) < 0.15) flyingRef.current = false
   })
   return null
 }
@@ -208,7 +223,7 @@ export default function Scene() {
       <Nodes />
       <Edges />
 
-      <OrbitControls enableDamping dampingFactor={0.05} />
+      <OrbitControls makeDefault enableDamping dampingFactor={0.05} />
       <CameraController />
 
       <EffectComposer>

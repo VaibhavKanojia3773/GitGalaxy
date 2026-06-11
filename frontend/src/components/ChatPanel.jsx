@@ -135,7 +135,7 @@ export default function ChatPanel() {
           let cx = 0, cy = 0, cz = 0
           for (const id of top3) { const n = nodeMap[id]; if (n) { cx += n.x; cy += n.y; cz += n.z } }
           const count = top3.filter((id) => nodeMap[id]).length
-          if (count > 0) setCameraTarget({ x: cx / count, y: cy / count, z: cz / count + 25 })
+          if (count > 0) setCameraTarget({ x: cx / count, y: cy / count, z: cz / count + 25, lookAt: { x: cx / count, y: cy / count, z: cz / count } })
         }
       }
     } catch (e) {

@@ -113,6 +113,57 @@ class GitHubClient:
         cache.set(cache_key, content, expire=3600)
         return content
 
+    async def fetch_repo_meta(self, owner: str, repo: str) -> dict:
+        """Repo-level metadata: stars, forks, license, languages, top contributors.
+        Three cheap REST calls, cached 24h."""
+        cache_key = (owner, repo, 'meta')
+        if cache_key in cache:
+            return cache[cache_key]
+
+        meta: dict = {}
+        try:
+            async with self._api_client() as client:
+                info_r, langs_r, contrib_r = await asyncio.gather(
+                    client.get(f'{self.base_url}/repos/{owner}/{repo}'),
+                    client.get(f'{self.base_url}/repos/{owner}/{repo}/languages'),
+                    client.get(f'{self.base_url}/repos/{owner}/{repo}/contributors?per_page=5'),
+                    return_exceptions=True,
+                )
+
+            if not isinstance(info_r, Exception) and info_r.status_code == 200:
+                info = info_r.json()
+                meta = {
+                    'full_name': info.get('full_name', f'{owner}/{repo}'),
+                    'description': info.get('description') or '',
+                    'stars': info.get('stargazers_count', 0),
+                    'forks': info.get('forks_count', 0),
+                    'watchers': info.get('subscribers_count', 0),
+                    'open_issues': info.get('open_issues_count', 0),
+                    'license': (info.get('license') or {}).get('spdx_id') or '',
+                    'topics': info.get('topics', [])[:6],
+                    'default_branch': info.get('default_branch', 'main'),
+                    'pushed_at': info.get('pushed_at') or '',
+                    'homepage': info.get('homepage') or '',
+                    'html_url': info.get('html_url', f'https://github.com/{owner}/{repo}'),
+                }
+            if not isinstance(langs_r, Exception) and langs_r.status_code == 200:
+                meta['languages'] = langs_r.json()  # {lang: bytes}
+            if not isinstance(contrib_r, Exception) and contrib_r.status_code == 200:
+                meta['contributors'] = [
+                    {
+                        'login': c.get('login', ''),
+                        'avatar_url': c.get('avatar_url', ''),
+                        'contributions': c.get('contributions', 0),
+                    }
+                    for c in contrib_r.json() if isinstance(c, dict)
+                ]
+        except Exception:
+            pass
+
+        if meta:
+            cache.set(cache_key, meta, expire=86400)
+        return meta
+
     async def fetch_issues(self, owner: str, repo: str) -> list[dict]:
         cache_key = (owner, repo, 'issues')
         if cache_key in cache:

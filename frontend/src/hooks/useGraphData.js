@@ -4,11 +4,21 @@ export function useGraphData() {
   const setGraph          = useStore((s) => s.setGraph)
   const setRepoStatus     = useStore((s) => s.setRepoStatus)
   const setLoadingProgress = useStore((s) => s.setLoadingProgress)
+  const setRepoMeta       = useStore((s) => s.setRepoMeta)
   const provider          = useStore((s) => s.provider)
   const apiKey            = useStore((s) => s.apiKey)
 
+  function fetchRepoMeta(repoKey) {
+    if (!repoKey || !repoKey.includes('/')) return
+    fetch(`/api/repo-meta/${repoKey}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((meta) => { if (meta) setRepoMeta(meta) })
+      .catch(() => {})
+  }
+
   async function loadRepo(url) {
     setRepoStatus('loading')
+    setRepoMeta(null)
     setLoadingProgress({ stage: 'starting', message: 'Connecting...', pct: 0 })
 
     try {
@@ -60,6 +70,7 @@ export function useGraphData() {
                 setGraph(payload.graph)
                 setRepoStatus('ready')
                 setLoadingProgress({ stage: 'done', message: 'Galaxy ready!', pct: 100 })
+                fetchRepoMeta(payload.graph?.metadata?.repo)
               } else if (eventName === 'error') {
                 setRepoStatus('error', payload.detail || 'Pipeline error')
               }

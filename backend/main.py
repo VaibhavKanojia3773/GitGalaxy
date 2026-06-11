@@ -294,6 +294,15 @@ async def stream_repo(req: RepoRequest):
     )
 
 
+@app.get('/api/repo-meta/{owner}/{repo}')
+async def repo_meta(owner: str, repo: str):
+    github: GitHubClient = _state['github']
+    meta = await github.fetch_repo_meta(owner, repo)
+    if not meta:
+        raise HTTPException(status_code=404, detail='Repository metadata unavailable.')
+    return meta
+
+
 @app.post('/api/search')
 async def search(req: SearchRequest):
     import faiss as faiss_lib

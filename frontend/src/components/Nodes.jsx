@@ -586,7 +586,7 @@ export default function Nodes() {
           setExpandedFile(null)
         } else {
           setExpandedFile(p.file_path)
-          setCameraTarget({ x: p.x, y: p.y, z: p.z + 32 })
+          setCameraTarget({ x: p.x, y: p.y, z: p.z + 32, lookAt: { x: p.x, y: p.y, z: p.z } })
         }
         setSelectedNode(p.repNode)
       },
@@ -610,7 +610,7 @@ export default function Nodes() {
         if (id == null || id >= moons.length) return
         const m = moons[id]
         setSelectedNode(m)
-        setCameraTarget({ x: m.x, y: m.y, z: m.z + 15 })
+        setCameraTarget({ x: m.x, y: m.y, z: m.z + 15, lookAt: { x: m.x, y: m.y, z: m.z } })
       },
     }
   }
@@ -631,7 +631,7 @@ export default function Nodes() {
         const id = e.instanceId
         if (id == null || id >= nodes.length) return
         setSelectedNode(nodes[id])
-        setCameraTarget({ x: nodes[id].x, y: nodes[id].y, z: nodes[id].z + 20 })
+        setCameraTarget({ x: nodes[id].x, y: nodes[id].y, z: nodes[id].z + 20, lookAt: { x: nodes[id].x, y: nodes[id].y, z: nodes[id].z } })
       },
     }
   }

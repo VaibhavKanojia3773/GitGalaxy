@@ -8,6 +8,7 @@ import SearchBar from './components/SearchBar'
 import NodePanel from './components/NodePanel'
 import Legend from './components/Legend'
 import ChatPanel from './components/ChatPanel'
+import RepoHeader from './components/RepoHeader'
 
 export default function App() {
   const repoStatus  = useStore((s) => s.repoStatus)
@@ -80,6 +81,7 @@ export default function App() {
           <Scene />
         </div>
       </Suspense>
+      <RepoHeader />
       <SearchBar />
       <Legend />
       <AnimatePresence>

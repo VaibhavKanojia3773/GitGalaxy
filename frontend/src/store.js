@@ -14,6 +14,9 @@ const useStore = create((set, get) => ({
   graph: null,
   nodeMap: {},
 
+  // repo-level metadata (stars, forks, license, languages, contributors)
+  repoMeta: null,
+
   // scene interaction
   selectedNode: null,
   selectedNodeId: null,
@@ -70,6 +73,8 @@ const useStore = create((set, get) => ({
   },
 
   setCameraTarget: (target) => set({ cameraTarget: target }),
+
+  setRepoMeta: (meta) => set({ repoMeta: meta }),
 
   setAgentPanel: (panel) => set({ agentPanel: panel }),
 

@@ -49,7 +49,7 @@ export default function SearchBar() {
         const cx = top3.reduce((s, n) => s + n.x, 0) / top3.length
         const cy = top3.reduce((s, n) => s + n.y, 0) / top3.length
         const cz = top3.reduce((s, n) => s + n.z, 0) / top3.length
-        setCameraTarget({ x: cx, y: cy, z: cz + 20 })
+        setCameraTarget({ x: cx, y: cy, z: cz + 20, lookAt: { x: cx, y: cy, z: cz } })
       }
     } catch (err) {
       console.error(err)
