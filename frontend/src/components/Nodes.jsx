@@ -1,5 +1,6 @@
 import { useMemo, useRef, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { Billboard, Text } from '@react-three/drei'
 import * as THREE from 'three'
 import useStore from '../store'
 
@@ -275,6 +276,56 @@ function PlanetRings({ filePlanets, expandedFileId }) {
       </group>
     )
   })
+}
+
+// ── Folder constellation labels ───────────────────────────────────────────────
+// Groups file-planets by top-level directory and floats a faint billboarded
+// label above each cluster's centroid — the galaxy reads as a knowledge graph.
+function ConstellationLabels({ filePlanets, expandedFileId }) {
+  const folders = useMemo(() => {
+    const byFolder = {}
+    for (const p of filePlanets) {
+      const folder = p.file_path.includes('/') ? p.file_path.split('/')[0] : null
+      if (!folder) continue
+      ;(byFolder[folder] ??= []).push(p)
+    }
+    return Object.entries(byFolder)
+      .filter(([, planets]) => planets.length >= 2)
+      .map(([name, planets]) => ({
+        name,
+        x: planets.reduce((s, p) => s + p.x, 0) / planets.length,
+        y: Math.max(...planets.map(p => p.y)) + 7,
+        z: planets.reduce((s, p) => s + p.z, 0) / planets.length,
+        count: planets.length,
+      }))
+  }, [filePlanets])
+
+  const dimmed = !!expandedFileId
+  return folders.map(f => (
+    <Billboard key={f.name} position={[f.x, f.y, f.z]}>
+      <Text
+        fontSize={2.1}
+        letterSpacing={0.22}
+        color="#a5b4fc"
+        fillOpacity={dimmed ? 0.07 : 0.38}
+        anchorX="center"
+        anchorY="middle"
+      >
+        {f.name.toUpperCase()}
+      </Text>
+      <Text
+        position={[0, -2.1, 0]}
+        fontSize={0.95}
+        letterSpacing={0.12}
+        color="#64748b"
+        fillOpacity={dimmed ? 0.05 : 0.3}
+        anchorX="center"
+        anchorY="middle"
+      >
+        {`${f.count} files`}
+      </Text>
+    </Billboard>
+  ))
 }
 
 // ── Atmosphere shell — always visible, brighter when expanded ────────────────
@@ -686,6 +737,7 @@ export default function Nodes() {
 
       <PlanetRings filePlanets={filePlanets} expandedFileId={expandedFileId} />
       <AtmosphereShells filePlanets={filePlanets} expandedFileId={expandedFileId} />
+      <ConstellationLabels filePlanets={filePlanets} expandedFileId={expandedFileId} />
     </group>
   )
 }

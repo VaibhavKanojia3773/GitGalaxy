@@ -49,8 +49,12 @@ export default function RepoInput() {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
-      style={{ background: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(99,102,241,0.18) 0%, transparent 60%), #020617' }}
+      className="absolute inset-0 z-30 flex flex-col items-center justify-center overflow-y-auto py-24"
+      style={{
+        background: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(99,102,241,0.16) 0%, transparent 60%), rgba(2,6,23,0.55)',
+        backdropFilter: 'blur(3px)',
+        WebkitBackdropFilter: 'blur(3px)',
+      }}
     >
       {/* decorative background orbs */}
       <Orb style={{ width: 420, height: 420, left: '-12%', top: '5%',  background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)' }} />
@@ -92,7 +96,7 @@ export default function RepoInput() {
           ✦ AI-powered 3D code exploration
         </motion.div>
 
-        <h1 className="text-5xl sm:text-6xl font-extrabold leading-none tracking-tight mb-4"
+        <h1 className="font-display text-5xl sm:text-6xl font-bold leading-none tracking-tight mb-4"
           style={{ background: 'linear-gradient(135deg, #e2e8f0 0%, #a5b4fc 40%, #818cf8 70%, #c084fc 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
           Explore code as<br />a living galaxy
         </h1>

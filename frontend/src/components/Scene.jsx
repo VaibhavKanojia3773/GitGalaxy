@@ -195,6 +195,7 @@ function Nebula() {
 export default function Scene() {
   const clearSelection  = useStore((s) => s.clearSelection)
   const setExpandedFile = useStore((s) => s.setExpandedFile)
+  const repoStatus      = useStore((s) => s.repoStatus)
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') setExpandedFile(null) }
@@ -223,7 +224,13 @@ export default function Scene() {
       <Nodes />
       <Edges />
 
-      <OrbitControls makeDefault enableDamping dampingFactor={0.05} />
+      <OrbitControls
+        makeDefault
+        enableDamping
+        dampingFactor={0.05}
+        autoRotate={repoStatus !== 'ready'}
+        autoRotateSpeed={0.4}
+      />
       <CameraController />
 
       <EffectComposer>

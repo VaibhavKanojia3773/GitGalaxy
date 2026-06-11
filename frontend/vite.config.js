@@ -11,4 +11,14 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          three: ['three', '@react-three/fiber', '@react-three/drei', '@react-three/postprocessing'],
+          react: ['react', 'react-dom', 'framer-motion'],
+        },
+      },
+    },
+  },
 })

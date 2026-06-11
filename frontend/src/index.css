@@ -9,8 +9,37 @@
 }
 
 body {
-  background: #030712;
+  background: #020617;
   color: #f1f5f9;
   font-family: 'Inter', system-ui, sans-serif;
   overflow: hidden;
+}
+
+.font-display {
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+}
+
+code, pre, .font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+::selection {
+  background: rgba(99, 102, 241, 0.4);
+  color: #fff;
+}
+
+/* slim themed scrollbars for panels */
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.25);
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.45);
 }

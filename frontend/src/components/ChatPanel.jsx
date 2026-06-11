@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MessageSquare, Send, X, Sparkles } from 'lucide-react'
+import { MessageSquare, Send, X, Sparkles, Navigation } from 'lucide-react'
 import useStore from '../store'
 
 const SUGGESTIONS = [
@@ -21,6 +21,30 @@ function renderMarkdown(text) {
 
 function Message({ msg }) {
   const isUser = msg.role === 'user'
+  const nodeMap          = useStore((s) => s.nodeMap)
+  const setSelectedNode  = useStore((s) => s.setSelectedNode)
+  const setCameraTarget  = useStore((s) => s.setCameraTarget)
+
+  // referenced code nodes → clickable fly-to chips (dedup by display name)
+  const refs = []
+  if (!isUser && msg.node_ids?.length) {
+    const seen = new Set()
+    for (const id of msg.node_ids) {
+      const n = nodeMap[id]
+      if (!n) continue
+      const label = n.name || n.title || (n.file_path || '').split('/').pop()
+      if (!label || seen.has(label)) continue
+      seen.add(label)
+      refs.push({ node: n, label })
+      if (refs.length >= 4) break
+    }
+  }
+
+  function flyTo(n) {
+    setSelectedNode(n)
+    setCameraTarget({ x: n.x, y: n.y, z: n.z + 18, lookAt: { x: n.x, y: n.y, z: n.z } })
+  }
+
   return (
     <div className={`flex gap-2 mb-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
       {!isUser && (
@@ -29,21 +53,40 @@ function Message({ msg }) {
           <Sparkles size={10} className="text-white" />
         </div>
       )}
-      <div
-        className="max-w-xs lg:max-w-md px-3 py-2 rounded-2xl text-xs leading-relaxed"
-        style={isUser ? {
-          background: 'linear-gradient(135deg,rgba(99,102,241,0.85),rgba(139,92,246,0.75))',
-          color: '#fff',
-          borderBottomRightRadius: 4,
-        } : {
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          color: '#cbd5e1',
-          borderBottomLeftRadius: 4,
-          wordBreak: 'break-word',
-        }}
-        dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-      />
+      <div className="max-w-xs lg:max-w-md">
+        <div
+          className="px-3 py-2 rounded-2xl text-xs leading-relaxed"
+          style={isUser ? {
+            background: 'linear-gradient(135deg,rgba(99,102,241,0.85),rgba(139,92,246,0.75))',
+            color: '#fff',
+            borderBottomRightRadius: 4,
+          } : {
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            color: '#cbd5e1',
+            borderBottomLeftRadius: 4,
+            wordBreak: 'break-word',
+          }}
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+        />
+        {refs.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {refs.map(({ node, label }) => (
+              <button
+                key={node.id}
+                onClick={() => flyTo(node)}
+                title={node.file_path || ''}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono transition-all"
+                style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', color: '#a5b4fc' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(99,102,241,0.25)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(99,102,241,0.1)' }}
+              >
+                <Navigation size={8} /> {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
