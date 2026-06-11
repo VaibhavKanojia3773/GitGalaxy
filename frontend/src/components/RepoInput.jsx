@@ -18,18 +18,6 @@ const FEATURES = [
   { icon: <GitBranch size={16} />, title: 'Issues & PRs', desc: 'Open issues and pull requests rendered as nodes alongside the code' },
 ]
 
-// Animated floating orb
-function Orb({ style }) {
-  return (
-    <motion.div
-      className="absolute rounded-full pointer-events-none"
-      style={style}
-      animate={{ y: [0, -18, 0], opacity: [0.35, 0.55, 0.35] }}
-      transition={{ duration: 7 + Math.random() * 4, repeat: Infinity, ease: 'easeInOut' }}
-    />
-  )
-}
-
 export default function RepoInput() {
   const [input, setInput]   = useState('')
   const [focused, setFocused] = useState(false)
@@ -56,11 +44,6 @@ export default function RepoInput() {
         WebkitBackdropFilter: 'blur(3px)',
       }}
     >
-      {/* decorative background orbs */}
-      <Orb style={{ width: 420, height: 420, left: '-12%', top: '5%',  background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)' }} />
-      <Orb style={{ width: 320, height: 320, right: '-8%', bottom: '15%', background: 'radial-gradient(circle, rgba(139,92,246,0.10) 0%, transparent 70%)' }} />
-      <Orb style={{ width: 200, height: 200, left: '30%', bottom: '8%', background: 'radial-gradient(circle, rgba(56,189,248,0.08) 0%, transparent 70%)' }} />
-
       {/* top nav */}
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-8 py-5">
         <div className="flex items-center gap-2">
@@ -93,7 +76,7 @@ export default function RepoInput() {
           className="mb-5 px-3 py-1 rounded-full text-xs font-medium"
           style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', color: '#a5b4fc' }}
         >
-          ✦ AI-powered 3D code exploration
+          Visualize · Search · Chat — any public repository
         </motion.div>
 
         <h1 className="font-display text-5xl sm:text-6xl font-bold leading-none tracking-tight mb-4"
@@ -198,7 +181,7 @@ export default function RepoInput() {
       </motion.div>
 
       {/* footer */}
-      <p className="absolute bottom-5 text-xs" style={{ color: '#1e293b' }}>
+      <p className="absolute bottom-5 text-xs" style={{ color: '#334155' }}>
         Open source · No data stored · Works on any public repo
       </p>
     </div>

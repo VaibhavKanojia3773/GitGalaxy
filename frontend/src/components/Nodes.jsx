@@ -85,54 +85,77 @@ const PLANET_FRAG = /* glsl */`
 
   ${GLSL_NOISE}
 
-  // ─ Gas giant banding (Python / indigo hues) ─
+  // ─ Jupiter-style gas giant (Python / indigo langs) ─
   vec3 gasGiant(vec3 col, vec3 p, float t) {
-    float lat   = p.y;
-    float band  = sin(lat * 18.0 + n2(vec2(lat*3.0, t*0.05))*2.5) * 0.5 + 0.5;
-    float storm = smoothstep(0.48, 0.52, n2(vec2(p.x*4.0+t*0.02, lat*6.0)));
-    vec3  dark  = col * 0.4;
-    vec3  light = col * 1.6 + vec3(0.1,0.05,0.2);
-    vec3  base  = mix(dark, light, band);
-    base += vec3(0.9,0.7,1.0) * storm * 0.25; // white storm spot
+    float lat  = p.y;
+    float turb = n2(vec2(p.x * 3.0 + t * 0.015, lat * 5.0)) * 1.6;
+    float band = sin(lat * 13.0 + turb) * 0.5 + 0.5;
+    float fine = sin(lat * 31.0 + turb * 2.0) * 0.5 + 0.5;
+    vec3 cream = vec3(0.86, 0.77, 0.62);
+    vec3 rust  = vec3(0.58, 0.40, 0.27);
+    vec3 base  = mix(rust, cream, band * 0.75 + fine * 0.25);
+    // great red spot: oval blotch fixed on the surface
+    vec2 spotUV = vec2(p.x - 0.55, (lat + 0.28) * 1.9);
+    float spot  = smoothstep(0.38, 0.12, length(spotUV));
+    base = mix(base, vec3(0.72, 0.28, 0.16), spot * 0.85);
     return base;
   }
 
-  // ─ Desert / rocky (JavaScript amber, Java orange) ─
+  // ─ Mars-style desert (JavaScript amber, Java orange) ─
   vec3 desert(vec3 col, vec3 p, float t) {
-    float rock = fbm(p * 4.0 + t*0.008);
-    float dune = n2(vec2(p.x*3.0, p.z*3.0+t*0.01)) * 0.5 + 0.5;
-    vec3 sand  = col * 1.4;
-    vec3 dark  = col * 0.3 + vec3(0.05,0.02,0.0);
-    return mix(dark, sand, rock * 0.6 + dune * 0.4);
-  }
-
-  // ─ Ice / crystal (TypeScript sky-blue, Go teal) ─
-  vec3 icePlanet(vec3 col, vec3 p, float t) {
-    float crack = abs(sin(fbm(p*6.0)*12.0));
-    float polar = smoothstep(0.5, 0.9, abs(p.y)); // polar ice caps
-    vec3  ice   = vec3(0.75, 0.92, 1.0);
-    vec3  deep  = col * 0.7;
-    vec3  base  = mix(deep, ice, crack * 0.4 + polar * 0.6);
-    base += ice * 0.1 * sin(t*0.3 + p.x*8.0); // shimmer
+    float rock  = fbm(p * 4.0);
+    float maria = smoothstep(0.42, 0.62, fbm(p * 2.2 + 3.7)); // dark basalt plains
+    vec3 rust   = vec3(0.69, 0.39, 0.21);
+    vec3 sand   = vec3(0.82, 0.58, 0.36);
+    vec3 dark   = vec3(0.38, 0.20, 0.11);
+    vec3 base   = mix(mix(rust, sand, rock), dark, maria * 0.55);
+    // thin polar caps
+    float polar = smoothstep(0.82, 0.94, abs(p.y));
+    base = mix(base, vec3(0.92, 0.90, 0.86), polar);
     return base;
   }
 
-  // ─ Lava / volcanic (Rust, Ruby red-orange) ─
-  vec3 lava(vec3 col, vec3 p, float t) {
-    float flow = fbm(p * 5.0 + vec3(0.0, t*0.04, 0.0));
-    float hot  = smoothstep(0.55, 0.85, flow);
-    vec3  dark = vec3(0.05, 0.01, 0.0);
-    vec3  glow = vec3(1.0, 0.35, 0.02);
-    return mix(dark, glow, hot);
+  // ─ Neptune-style ice giant (TypeScript sky-blue) ─
+  vec3 icePlanet(vec3 col, vec3 p, float t) {
+    float lat   = p.y;
+    float band  = sin(lat * 9.0 + n2(vec2(p.x * 2.0, lat * 3.0)) * 1.2) * 0.5 + 0.5;
+    vec3 deep   = vec3(0.10, 0.22, 0.62);
+    vec3 light  = vec3(0.28, 0.48, 0.88);
+    vec3 base   = mix(deep, light, band * 0.6 + 0.2);
+    // bright methane cloud streaks
+    float streak = smoothstep(0.62, 0.82, n2(vec2(p.x * 5.0 + t * 0.02, lat * 14.0)));
+    base += vec3(0.75, 0.85, 1.0) * streak * 0.30;
+    return base;
   }
 
-  // ─ Ocean world (Go teal, deep blue) ─
+  // ─ Io-style volcanic world (Rust, Ruby red-orange) ─
+  vec3 lava(vec3 col, vec3 p, float t) {
+    float flow   = fbm(p * 5.0 + vec3(0.0, t * 0.03, 0.0));
+    float cracks = smoothstep(0.58, 0.82, flow);
+    vec3 basalt  = vec3(0.16, 0.12, 0.10);
+    vec3 sulfur  = vec3(0.55, 0.45, 0.22);
+    float patch  = smoothstep(0.35, 0.6, fbm(p * 2.4 + 7.1));
+    vec3 base    = mix(basalt, sulfur, patch * 0.5);
+    base = mix(base, vec3(1.0, 0.38, 0.05), cracks); // glowing lava channels
+    return base;
+  }
+
+  // ─ Earth-style ocean world (Go teal) ─
   vec3 ocean(vec3 col, vec3 p, float t) {
-    float wave = n2(vec2(p.x*5.0 + t*0.06, p.z*5.0 - t*0.04)) * 0.5 + 0.5;
-    float land = smoothstep(0.55, 0.65, fbm(p * 3.0)); // continents
-    vec3 water = col * (0.8 + wave * 0.4);
-    vec3 terra = vec3(0.2, 0.45, 0.15);
-    return mix(water, terra, land * 0.5);
+    float land  = smoothstep(0.50, 0.58, fbm(p * 2.6 + 1.3)); // continents
+    float hills = fbm(p * 6.0);
+    vec3 deepSea  = vec3(0.03, 0.13, 0.36);
+    vec3 shelfSea = vec3(0.07, 0.27, 0.52);
+    float shelf = smoothstep(0.40, 0.50, fbm(p * 2.6 + 1.3));
+    vec3 water  = mix(deepSea, shelfSea, shelf);
+    vec3 plains = vec3(0.20, 0.32, 0.12);
+    vec3 ridges = vec3(0.42, 0.36, 0.24);
+    vec3 terra  = mix(plains, ridges, hills);
+    vec3 base   = mix(water, terra, land);
+    // polar ice caps
+    float polar = smoothstep(0.72, 0.86, abs(p.y));
+    base = mix(base, vec3(0.93, 0.95, 0.97), polar);
+    return base;
   }
 
   // ─ Hue classifier (RGB → planet type 0-4) ─
@@ -169,26 +192,29 @@ const PLANET_FRAG = /* glsl */`
     else if (ptype == 4) surface = icePlanet(vColor, vPos, uTime);
     else                 surface = desert(vColor, vPos, uTime);
 
-    // cloud layer on gas giants and ocean worlds
-    if (ptype == 0 || ptype == 2) {
+    // drifting cloud layer — earth-style ocean worlds only
+    if (ptype == 2) {
       float c = fbm(vPos * 2.6 + vec3(uTime * 0.009, 0.0, uTime * 0.007));
-      float cloudMask = smoothstep(0.5, 0.78, c);
-      vec3  cloudCol  = vec3(0.90, 0.93, 1.0) * (diff * 0.85 + 0.15);
-      surface = mix(surface, cloudCol, cloudMask * 0.42);
+      float cloudMask = smoothstep(0.52, 0.78, c);
+      vec3  cloudCol  = vec3(0.94, 0.96, 1.0) * (diff * 0.85 + 0.15);
+      surface = mix(surface, cloudCol, cloudMask * 0.5);
     }
+
+    // subtle language tint so planets stay distinguishable in the legend
+    surface = mix(surface, surface * (0.45 + vColor * 1.1), 0.16);
 
     vec3 base = surface * diff;
 
-    // atmosphere rim glow (brighter on ice/ocean — scattering effect)
-    float rimStr = (ptype == 2 || ptype == 4) ? 2.2 : 1.6;
+    // thin atmospheric rim in the language colour (identity halo)
+    float rimStr = (ptype == 2 || ptype == 4) ? 1.1 : 0.7;
     base += vColor * fresnel * rimStr;
 
-    // type-specific specular: strong for ocean/ice, subtle for others
+    // specular: strong glint on water only, faint elsewhere
     vec3 H    = normalize(L + V);
-    float specPow = (ptype == 2 || ptype == 4) ? 96.0 : 42.0;
-    float specStr = (ptype == 2 || ptype == 4) ? 0.55 : 0.18;
+    float specPow = (ptype == 2) ? 110.0 : 38.0;
+    float specStr = (ptype == 2) ? 0.6 : 0.08;
     float spec = pow(max(dot(N, H), 0.0), specPow);
-    base += vec3(0.85, 0.92, 1.0) * spec * specStr;
+    base += vec3(0.95, 0.97, 1.0) * spec * specStr;
 
     // lava self-glow on dark side
     if (ptype == 3) {
@@ -198,7 +224,7 @@ const PLANET_FRAG = /* glsl */`
       base += vec3(1.0, 0.3, 0.02) * hotspot * darkSide * 0.8;
     }
 
-    base += vColor * 0.1; // emissive for bloom
+    base += vColor * 0.04; // faint emissive so bloom stays subtle
 
     gl_FragColor = vec4(base, 1.0);
   }
@@ -247,29 +273,29 @@ const MOON_FRAG = /* glsl */`
   }
 `
 
-// ── Planet decorative rings ──────────────────────────────────────────────────
+// ── Saturn-style flat ring discs on the largest planets ─────────────────────
 function PlanetRings({ filePlanets, expandedFileId }) {
   return filePlanets.filter(p => p.chunks.length >= 5).map(p => {
     const isExp = p.file_path === expandedFileId
     return (
-      <group key={p.id} position={[p.x, p.y, p.z]} rotation={[Math.PI * 0.38, 0.2, 0]}>
-        {/* inner ring */}
-        <mesh>
-          <torusGeometry args={[p.size * 1.7, 0.045, 6, 80]} />
+      <group key={p.id} position={[p.x, p.y, p.z]} rotation={[Math.PI * 0.42, 0.18, 0]}>
+        {/* main ring annulus */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[p.size * 1.45, p.size * 2.1, 72]} />
           <meshBasicMaterial
-            color={LANG_COLORS[p.lang] || LANG_COLORS.unknown}
-            transparent opacity={isExp ? 0.7 : 0.2} depthWrite={false}
-            blending={THREE.AdditiveBlending}
+            color="#c9b896"
+            transparent opacity={isExp ? 0.5 : 0.28} depthWrite={false}
+            side={THREE.DoubleSide}
           />
         </mesh>
-        {/* outer faint ring */}
+        {/* outer band past the Cassini-style gap */}
         {p.chunks.length >= 8 && (
-          <mesh>
-            <torusGeometry args={[p.size * 2.4, 0.025, 6, 80]} />
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[p.size * 2.22, p.size * 2.55, 72]} />
             <meshBasicMaterial
-              color={LANG_COLORS[p.lang] || LANG_COLORS.unknown}
-              transparent opacity={isExp ? 0.4 : 0.1} depthWrite={false}
-              blending={THREE.AdditiveBlending}
+              color="#a89878"
+              transparent opacity={isExp ? 0.32 : 0.16} depthWrite={false}
+              side={THREE.DoubleSide}
             />
           </mesh>
         )}
@@ -498,13 +524,13 @@ export default function Nodes() {
         pm.setColorAt(i, _color)
 
         if (gm) {
-          // glow halo: 2.8x planet size, pulsing when expanded
-          const gs = s * (isExpanded ? 2.8 + Math.sin(t * 2) * 0.15 : 2.8)
+          // soft atmosphere halo: subtle at rest, brighter pulse when expanded
+          const gs = s * (isExpanded ? 2.2 + Math.sin(t * 2) * 0.1 : 2.0)
           _scale.setScalar(gs)
           _matrix.compose(_pos, _quat.identity(), _scale)
           gm.setMatrixAt(i, _matrix)
           _color.set(LANG_COLORS[p.lang] || LANG_COLORS.unknown)
-          const glowFade = fade < 1 ? fade * 0.4 : (isExpanded ? 0.14 : 0.06)
+          const glowFade = fade < 1 ? fade * 0.3 : (isExpanded ? 0.10 : 0.035)
           _color.multiplyScalar(glowFade)
           gm.setColorAt(i, _color)
         }
@@ -692,7 +718,7 @@ export default function Nodes() {
       {/* glow halos — additive blending, rendered before planets */}
       {filePlanets.length > 0 && (
         <instancedMesh ref={glowMeshRef} args={[PLANET_GEO, null, filePlanets.length]} frustumCulled={false} renderOrder={-1}>
-          <meshBasicMaterial vertexColors transparent opacity={0.11} depthWrite={false} blending={THREE.AdditiveBlending} />
+          <meshBasicMaterial vertexColors transparent opacity={0.08} depthWrite={false} blending={THREE.AdditiveBlending} />
         </instancedMesh>
       )}
 
